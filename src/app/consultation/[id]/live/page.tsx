@@ -455,7 +455,9 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                                     {isGeneratingPrescription ? <Loader className="mr-2 animate-spin"/> : <Pill className="mr-2"/>}
                                     Generate AI Prescription
                                 </Button>
-                                <Button className="w-full justify-start" variant="outline"><Ambulance className="mr-2"/> Recommend Physical Visit</Button>
+                                <Button className="w-full justify-start" variant="outline" onClick={() => toast({ title: "Referral Sent", description: "A recommendation for a physical visit has been sent to the patient."})}>
+                                    <Ambulance className="mr-2"/> Recommend Physical Visit
+                                </Button>
                             </CardFooter>
                         </Card>
                     )}
@@ -541,3 +543,5 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     </div>
   );
 }
+
+    
