@@ -17,7 +17,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
 import type { IConsultation } from "@/models/Consultation";
-import { cn } from "@/lib/utils";
 
 
 function ProfileTab({ user }: { user: UserSession | null }) {
@@ -139,6 +138,18 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
   const [isStartingConsultation, setIsStartingConsultation] = useState<string | null>(null);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+        startTransition(async () => {
+            const result = await getHcpDashboardData();
+            if(result.success) {
+                setData(result.data as WaitingPatient[]);
+            } else {
+                setError(result.error ?? "An unknown error occurred.");
+            }
+        });
+    }, 5000); // Poll every 5 seconds
+    
+    // Initial fetch
     startTransition(async () => {
         const result = await getHcpDashboardData();
         if(result.success) {
@@ -147,6 +158,8 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
             setError(result.error ?? "An unknown error occurred.");
         }
     });
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleStartConsultation = async (consultationId: string) => {
@@ -210,7 +223,7 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {isPending && (
+                                {isPending && !data && (
                                     [...Array(3)].map((_, i) => (
                                         <div key={i} className="flex items-center justify-between rounded-lg border p-4">
                                             <div className="flex items-center gap-4">
@@ -224,13 +237,13 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                                         </div>
                                     ))
                                 )}
-                                {!isPending && error && (
+                                {error && (
                                     <Alert variant="destructive">
                                         <AlertTitle>Error</AlertTitle>
                                         <AlertDescription>{error}</AlertDescription>
                                     </Alert>
                                 )}
-                                {!isPending && data && data.length > 0 && (
+                                {data && data.length > 0 && (
                                     data.map((patient) => (
                                         <div key={patient.consultationId} className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4">
                                             <div className="flex items-center gap-4 mb-4 sm:mb-0">
@@ -263,7 +276,7 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                                         </div>
                                     ))
                                 )}
-                                {!isPending && data && data.length === 0 && (
+                                {data && data.length === 0 && (
                                     <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border p-8 text-center min-h-[200px]">
                                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                                             <User className="h-8 w-8 text-primary"/>
