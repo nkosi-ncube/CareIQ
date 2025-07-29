@@ -12,9 +12,10 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { getAIMatch } from '@/lib/actions';
-import { Sparkles, Stethoscope, AlertTriangle, Lightbulb } from 'lucide-react';
+import { getAIMatch, getFollowUpQuestions } from '@/lib/actions';
+import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
+import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
 import { Skeleton } from './ui/skeleton';
 
 const FormSchema = z.object({
@@ -24,6 +25,8 @@ const FormSchema = z.object({
 export default function ConsultationForm() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AnalyzeSymptomsOutput | null>(null);
+  const [questions, setQuestions] = useState<GenerateFollowUpQuestionsOutput | null>(null);
+  const [isFetchingQuestions, setIsFetchingQuestions] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -36,10 +39,19 @@ export default function ConsultationForm() {
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     startTransition(async () => {
       setResult(null);
+      setQuestions(null);
       const response = await getAIMatch(data.symptoms);
 
       if (response.success && response.data) {
         setResult(response.data);
+        setIsFetchingQuestions(true);
+        const questionsResponse = await getFollowUpQuestions(data.symptoms);
+        if(questionsResponse.success && questionsResponse.data) {
+            setQuestions(questionsResponse.data);
+        }
+        // Silently fail if questions fail, it's not critical path.
+        setIsFetchingQuestions(false);
+
       } else {
         toast({
           variant: 'destructive',
@@ -62,7 +74,7 @@ export default function ConsultationForm() {
                 <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder="For example: 'For the past week, I've had a persistent dry cough, a low-grade fever, and a headache...'"
+                    placeholder="For example: 'For the past week, I've have a persistent dry cough, a low-grade fever, and a headache...'"
                     className="min-h-[120px] resize-none"
                     {...field}
                   />
@@ -78,7 +90,7 @@ export default function ConsultationForm() {
         </form>
       </Form>
 
-      {isPending && (
+      {isPending && !result && (
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-3/4 rounded-md" />
@@ -92,36 +104,66 @@ export default function ConsultationForm() {
       )}
 
       {result && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-              <Stethoscope className="text-primary" />
-              Suggested Specialists
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {result.suggestedProfessionals.map((prof) => (
-                <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
-                  {prof}
-                </Badge>
-              ))}
-            </div>
-            <div>
-              <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
-                Confidence Level
-              </label>
-              <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
-            </div>
-            <Alert variant="default" className="bg-background border-accent/50">
-              <Lightbulb className="h-4 w-4 text-accent" />
-              <AlertTitle className="font-headline text-accent">Next Steps</AlertTitle>
-              <AlertDescription>
-                We recommend booking an appointment with one of these specialists. You can share this analysis with them during your consultation.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 md:grid-cols-2">
+            <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                <Stethoscope className="text-primary" />
+                Suggested Specialists
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                {result.suggestedProfessionals.map((prof) => (
+                    <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
+                    {prof}
+                    </Badge>
+                ))}
+                </div>
+                <div>
+                <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
+                    Confidence Level
+                </label>
+                <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
+                </div>
+                <Alert variant="default" className="bg-background border-accent/50">
+                <Lightbulb className="h-4 w-4 text-accent" />
+                <AlertTitle className="font-headline text-accent">Next Steps</AlertTitle>
+                <AlertDescription>
+                    We recommend booking an appointment with one of these specialists. You can share this analysis with them during your consultation.
+                </AlertDescription>
+                </Alert>
+            </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <HelpCircle className="text-primary"/>
+                        Follow-up Questions
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {isFetchingQuestions && (
+                        <div className="space-y-3">
+                            <Skeleton className="h-5 w-5/6 rounded-md" />
+                            <Skeleton className="h-5 w-full rounded-md" />
+                            <Skeleton className="h-5 w-4/6 rounded-md" />
+                        </div>
+                    )}
+                    {questions && (
+                        <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+                            {questions.questions.map((q, i) => (
+                                <li key={i}>{q}</li>
+                            ))}
+                        </ul>
+                    )}
+                     {!isFetchingQuestions && !questions && (
+                        <p className="text-sm text-muted-foreground">No follow-up questions generated.</p>
+                     )}
+                </CardContent>
+            </Card>
+        </div>
       )}
       
       {!isPending && !result && (
