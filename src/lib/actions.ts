@@ -6,6 +6,7 @@ import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation'
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
+import { analyzeVitals } from '@/ai/flows/analyze-vitals';
 import { patientDetails } from './mock-data';
 import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
@@ -50,7 +51,8 @@ export async function getFollowUpQuestions(symptoms: string) {
         patientDetails: patientDetails,
       });
       return { success: true, data: result };
-    } catch (error)
+    }
+    catch (error)
     {
       console.error('Error generating follow-up questions:', error);
       return { success: false, error: 'Failed to generate follow-up questions due to a server error. Please try again.' };
@@ -563,3 +565,18 @@ export async function getConsultationSummary(consultationId: string) {
         return { success: false, error: 'A server error occurred: ' + error.message };
     }
 }
+
+export async function analyzeVitalsAction(vitals: { heartRate: number; bloodOxygen: number; }) {
+    const session = await getSession();
+    if (!session) {
+      return { success: false, error: 'Unauthorized' };
+    }
+    try {
+      const result = await analyzeVitals(vitals);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Error analyzing vitals:', error);
+      return { success: false, error: 'Failed to analyze vitals.' };
+    }
+  }
+    

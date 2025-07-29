@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useTransition } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CareIqLogo } from "@/components/icons";
@@ -7,8 +7,8 @@ import ConsultationForm from "@/components/consultation-form";
 import CareHistory from "@/components/care-history";
 import AuthButton from "@/components/auth-button";
 import type { UserSession } from "@/lib/types";
-import { FileText, User, Loader, AlertTriangle, Pill } from "lucide-react";
-import { getPatientPrescriptions } from '@/lib/actions';
+import { FileText, User, Loader, AlertTriangle, Pill, HeartPulse, Link as LinkIcon, Activity, Wind } from "lucide-react";
+import { getPatientPrescriptions, analyzeVitalsAction } from '@/lib/actions';
 import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescription';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
@@ -16,6 +16,159 @@ import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
+import { cn } from '@/lib/utils';
+import type { AnalyzeVitalsOutput } from '@/ai/flows/analyze-vitals';
+
+
+function VitalsTab() {
+    const [status, setStatus] = useState<'unlinked' | 'linking' | 'linked'>('unlinked');
+    const [selectedDevice, setSelectedDevice] = useState<string>('');
+    const [vitals, setVitals] = useState({ heartRate: 72, bloodOxygen: 98 });
+    const [aiAnalysis, setAiAnalysis] = useState<AnalyzeVitalsOutput | null>(null);
+    const [isAnalyzing, startAnalyzingTransition] = useTransition();
+
+    const handleLinkDevice = () => {
+        if (!selectedDevice) return;
+        setStatus('linking');
+        setTimeout(() => {
+            setStatus('linked');
+        }, 2000); // Simulate linking delay
+    };
+
+    // Simulate real-time vitals and AI analysis
+    useEffect(() => {
+        if (status !== 'linked') return;
+
+        const vitalsInterval = setInterval(() => {
+            setVitals(prev => ({
+                heartRate: prev.heartRate + Math.floor(Math.random() * 5) - 2, // Fluctuate BPM
+                bloodOxygen: Math.min(100, Math.max(95, prev.bloodOxygen + Math.floor(Math.random() * 3) - 1)), // Fluctuate SpO2
+            }));
+        }, 2000); // Update vitals every 2 seconds
+
+        return () => clearInterval(vitalsInterval);
+    }, [status]);
+
+     // Trigger AI analysis when vitals change
+     useEffect(() => {
+        if (status !== 'linked') return;
+        
+        startAnalyzingTransition(async () => {
+            const result = await analyzeVitalsAction(vitals);
+            if (result.success && result.data) {
+                setAiAnalysis(result.data as AnalyzeVitalsOutput);
+            }
+        });
+    }, [vitals, status]);
+
+
+    const VitalCard = ({ icon, value, unit, label, isAnalyzing }: { icon: React.ReactNode, value: number, unit: string, label: string, isAnalyzing?: boolean }) => (
+        <Card className="flex-1 bg-background/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                {icon}
+            </CardHeader>
+            <CardContent>
+                {isAnalyzing ? <Skeleton className="h-8 w-24"/> : (
+                    <div className="text-2xl font-bold">
+                        {value} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+
+    const AIStatusCard = ({ analysis, isAnalyzing }: { analysis: AnalyzeVitalsOutput | null, isAnalyzing: boolean }) => {
+        const statusStyles = {
+            Normal: { icon: <Activity className="text-green-500" />, badge: 'secondary', text: 'text-green-500' },
+            Warning: { icon: <AlertTriangle className="text-yellow-500" />, badge: 'default', text: 'text-yellow-500' },
+            Critical: { icon: <HeartPulse className="text-red-500 animate-pulse" />, badge: 'destructive', text: 'text-red-500' },
+        }
+        
+        const currentStatus = analysis?.status || 'Normal';
+        const styles = statusStyles[currentStatus];
+
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">AI Analysis (CareWatch)</CardTitle>
+                    <CardDescription>Our AI agent continuously monitors your vitals for anomalies.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center gap-4">
+                    {isAnalyzing ? <Skeleton className="h-12 w-12 rounded-full" /> : (
+                         <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-${styles.badge}/20`}>
+                            {styles.icon}
+                        </div>
+                    )}
+                    <div>
+                        {isAnalyzing ? (
+                             <div className="space-y-2">
+                                <Skeleton className="h-5 w-32"/>
+                                <Skeleton className="h-4 w-56"/>
+                            </div>
+                        ) : (
+                            <>
+                                <p className={cn("font-bold text-lg", styles.text)}>{analysis?.status}</p>
+                                <p className="text-sm text-muted-foreground">{analysis?.analysis}</p>
+                            </>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (status === 'unlinked' || status === 'linking') {
+         return (
+            <Card className="shadow-lg">
+                 <CardHeader>
+                    <CardTitle className="font-headline">Connect a Device</CardTitle>
+                    <CardDescription>Link a health monitoring device to see your real-time vitals.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed p-8">
+                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                        <HeartPulse className="h-8 w-8 text-primary"/>
+                    </div>
+                    <div className="w-full max-w-sm space-y-4">
+                        <Select onValueChange={setSelectedDevice} disabled={status === 'linking'}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a device..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="apple-watch">Apple Watch</SelectItem>
+                                <SelectItem value="fitbit">Fitbit</SelectItem>
+                                <SelectItem value="garmin">Garmin</SelectItem>
+                                <SelectItem value="samsung-galaxy-watch">Samsung Galaxy Watch</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button className="w-full" onClick={handleLinkDevice} disabled={!selectedDevice || status === 'linking'}>
+                            {status === 'linking' ? <Loader className="animate-spin mr-2"/> : <LinkIcon className="mr-2"/>}
+                            {status === 'linking' ? 'Linking Device...' : 'Link Device'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+         )
+    }
+
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                     <CardTitle className="font-headline">Real-time Vitals</CardTitle>
+                    <CardDescription>Displaying live data from your connected {selectedDevice.replace('-', ' ')}.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col md:flex-row gap-4">
+                    <VitalCard icon={<HeartPulse className="text-red-500"/>} value={vitals.heartRate} unit="BPM" label="Heart Rate" isAnalyzing={isAnalyzing}/>
+                    <VitalCard icon={<Wind className="text-blue-500"/>} value={vitals.bloodOxygen} unit="SpO2 %" label="Blood Oxygen" isAnalyzing={isAnalyzing}/>
+                </CardContent>
+            </Card>
+            <AIStatusCard analysis={aiAnalysis} isAnalyzing={isAnalyzing} />
+        </div>
+    )
+}
 
 function PrescriptionsTab() {
     const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -198,8 +351,9 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
         </div>
 
         <Tabs defaultValue="consultation" className="mx-auto w-full max-w-6xl">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="consultation" disabled={!user}>New Consultation</TabsTrigger>
+            <TabsTrigger value="vitals" disabled={!user}>Vitals</TabsTrigger>
             <TabsTrigger value="history" disabled={!user}>Care History</TabsTrigger>
             <TabsTrigger value="prescriptions" disabled={!user}>Prescriptions</TabsTrigger>
             <TabsTrigger value="profile" disabled={!user}>Profile</TabsTrigger>
@@ -228,6 +382,18 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
                 </Card>
              )}
           </TabsContent>
+          <TabsContent value="vitals">
+            {user ? <VitalsTab /> : (
+                <Card className="shadow-lg flex flex-col items-center justify-center p-10 text-center">
+                    <CardHeader>
+                        <CardTitle className="font-headline">Please Log In</CardTitle>
+                        <CardDescription>
+                            You need to be logged in to monitor your vitals.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+            )}
+            </TabsContent>
           <TabsContent value="history">
             {user ? <CareHistory /> : (
                  <Card className="shadow-lg flex flex-col items-center justify-center p-10 text-center">
@@ -269,3 +435,5 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
     </div>
   );
 }
+
+    
