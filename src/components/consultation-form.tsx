@@ -256,7 +256,7 @@ export default function ConsultationForm() {
             <Skeleton className="h-4 w-full rounded-md" />
             <Skeleton className="h-10 w-full rounded-md" />
             <Skeleton className="h-4 w-1/2 rounded-md" />
-          </C</CardContent>
+          </CardContent>
         </Card>
       )}
 
