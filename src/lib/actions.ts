@@ -444,3 +444,28 @@ export async function approvePrescription(consultationId: string, prescription: 
         return { success: false, error: 'Failed to save prescription.' };
     }
 }
+
+export async function getPatientPrescriptions() {
+    const session = await getSession();
+    if (!session || session.role !== 'patient') {
+      return { success: false, error: 'You must be logged in as a patient to view prescriptions.' };
+    }
+  
+    try {
+      await dbConnect();
+  
+      const consultations = await ConsultationModel.find({ 
+        patient: session.id,
+        aiPrescription: { $exists: true, $ne: null } 
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+  
+      const prescriptions = consultations.map(c => c.aiPrescription);
+  
+      return { success: true, data: prescriptions };
+    } catch (error) {
+      console.error('Error fetching patient prescriptions:', error);
+      return { success: false, error: 'A server error occurred while fetching your prescriptions.' };
+    }
+  }
