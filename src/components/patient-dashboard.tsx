@@ -124,7 +124,7 @@ function PrescriptionCardWrapper({ prescription, consultationId, onDownload }: {
                     <div className='flex items-center gap-2'>
                         <Pill className='text-accent'/> Prescription Details
                     </div>
-                    <Button variant="outline" size="sm" onClick={download} disabled={isDownloading}>
+                    <Button variant="secondary" size="sm" onClick={download} disabled={isDownloading}>
                         {isDownloading ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : null}
                         Download PDF
                     </Button>
