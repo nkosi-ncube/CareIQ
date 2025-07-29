@@ -583,7 +583,7 @@ export async function getConsultationSummary(consultationId: string) {
     }
 }
 
-export async function analyzeVitalsAction(vitals: { heartRate: number; bloodOxygen: number; }) {
+export async function analyzeVitalsAction(vitals: { heartRate: number; bloodOxygen: number; temperature: number; }) {
     const session = await getSession();
     if (!session) {
       return { success: false, error: 'Unauthorized' };

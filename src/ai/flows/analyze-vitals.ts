@@ -14,7 +14,7 @@ import {z} from 'genkit';
 const AnalyzeVitalsInputSchema = z.object({
   heartRate: z.number().describe('The current heart rate in beats per minute (BPM).'),
   bloodOxygen: z.number().describe('The current blood oxygen saturation level (SpO2) as a percentage.'),
-  // In a real implementation, more vitals would be included here.
+  temperature: z.number().optional().describe('The current body temperature in Celsius (°C).'),
 });
 export type AnalyzeVitalsInput = z.infer<typeof AnalyzeVitalsInputSchema>;
 
@@ -39,10 +39,12 @@ const prompt = ai.definePrompt({
 Normal Ranges:
 - Heart Rate: 60-100 BPM
 - Blood Oxygen (SpO2): 95-100%
+- Temperature: 36.5-37.5 °C
 
 Current Vitals:
 - Heart Rate: {{heartRate}} BPM
 - Blood Oxygen: {{bloodOxygen}}%
+{{#if temperature}}- Temperature: {{temperature}}°C{{/if}}
 
 Analyze these vitals and determine if they are Normal, a Warning (slightly outside the normal range), or Critical (significantly outside the normal range, potentially requiring attention). Provide a brief analysis explaining your reasoning.
 `,

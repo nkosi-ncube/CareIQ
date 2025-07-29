@@ -7,7 +7,7 @@ import ConsultationForm from "@/components/consultation-form";
 import CareHistory from "@/components/care-history";
 import AuthButton from "@/components/auth-button";
 import type { UserSession } from "@/lib/types";
-import { FileText, User, Loader, AlertTriangle, Pill, HeartPulse, Link as LinkIcon, Activity, Wind } from "lucide-react";
+import { FileText, User, Loader, AlertTriangle, Pill, HeartPulse, Link as LinkIcon, Activity, Wind, Thermometer } from "lucide-react";
 import { getPatientPrescriptions, analyzeVitalsAction } from '@/lib/actions';
 import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescription';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -21,10 +21,24 @@ import { cn } from '@/lib/utils';
 import type { AnalyzeVitalsOutput } from '@/ai/flows/analyze-vitals';
 
 
+const dummyVitalsData = [
+    { heartRate: 72, bloodOxygen: 98, temperature: 36.8 },
+    { heartRate: 75, bloodOxygen: 99, temperature: 36.9 },
+    { heartRate: 78, bloodOxygen: 98, temperature: 37.0 },
+    { heartRate: 85, bloodOxygen: 97, temperature: 37.2 }, // Slightly elevated HR
+    { heartRate: 82, bloodOxygen: 98, temperature: 37.1 },
+    { heartRate: 76, bloodOxygen: 99, temperature: 36.9 },
+    { heartRate: 95, bloodOxygen: 99, temperature: 37.8 }, // Elevated HR and Temp
+    { heartRate: 90, bloodOxygen: 98, temperature: 37.6 },
+    { heartRate: 88, bloodOxygen: 98, temperature: 37.4 },
+    { heartRate: 70, bloodOxygen: 99, temperature: 36.7 },
+  ];
+
 function VitalsTab() {
     const [status, setStatus] = useState<'unlinked' | 'linking' | 'linked'>('unlinked');
     const [selectedDevice, setSelectedDevice] = useState<string>('');
-    const [vitals, setVitals] = useState({ heartRate: 72, bloodOxygen: 98 });
+    const [vitalsIndex, setVitalsIndex] = useState(0);
+    const [vitals, setVitals] = useState(dummyVitalsData[0]);
     const [aiAnalysis, setAiAnalysis] = useState<AnalyzeVitalsOutput | null>(null);
     const [isAnalyzing, startAnalyzingTransition] = useTransition();
 
@@ -36,19 +50,23 @@ function VitalsTab() {
         }, 2000); // Simulate linking delay
     };
 
-    // Simulate real-time vitals and AI analysis
+    // Simulate real-time vitals by cycling through dummy data
     useEffect(() => {
         if (status !== 'linked') return;
 
         const vitalsInterval = setInterval(() => {
-            setVitals(prev => ({
-                heartRate: prev.heartRate + Math.floor(Math.random() * 5) - 2, // Fluctuate BPM
-                bloodOxygen: Math.min(100, Math.max(95, prev.bloodOxygen + Math.floor(Math.random() * 3) - 1)), // Fluctuate SpO2
-            }));
-        }, 2000); // Update vitals every 2 seconds
+            setVitalsIndex(prev => (prev + 1) % dummyVitalsData.length);
+        }, 2500); // Update vitals every 2.5 seconds
 
         return () => clearInterval(vitalsInterval);
     }, [status]);
+
+    useEffect(() => {
+        if (status === 'linked') {
+            setVitals(dummyVitalsData[vitalsIndex]);
+        }
+    }, [vitalsIndex, status]);
+
 
      // Trigger AI analysis when vitals change
      useEffect(() => {
@@ -163,6 +181,7 @@ function VitalsTab() {
                 <CardContent className="flex flex-col md:flex-row gap-4">
                     <VitalCard icon={<HeartPulse className="text-red-500"/>} value={vitals.heartRate} unit="BPM" label="Heart Rate" isAnalyzing={isAnalyzing}/>
                     <VitalCard icon={<Wind className="text-blue-500"/>} value={vitals.bloodOxygen} unit="SpO2 %" label="Blood Oxygen" isAnalyzing={isAnalyzing}/>
+                    <VitalCard icon={<Thermometer className="text-orange-500"/>} value={vitals.temperature} unit="°C" label="Temperature" isAnalyzing={isAnalyzing}/>
                 </CardContent>
             </Card>
             <AIStatusCard analysis={aiAnalysis} isAnalyzing={isAnalyzing} />
@@ -435,5 +454,3 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
     </div>
   );
 }
-
-    
