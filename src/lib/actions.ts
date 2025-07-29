@@ -1,3 +1,4 @@
+
 'use server';
 
 import { analyzeSymptomsForConsultation } from '@/ai/flows/analyze-symptoms';
@@ -5,6 +6,7 @@ import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questio
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
+import type { GeneratePrescriptionInput } from '@/ai/flows/generate-prescription';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
 import { translateText } from '@/ai/flows/translate-text';
 import { patientDetails } from './mock-data';
@@ -435,13 +437,13 @@ export async function saveDiagnosis(consultationId: string, diagnosis: any) {
     }
 }
 
-export async function getAIPrescription(diagnosis: any) {
+export async function getAIPrescription(input: GeneratePrescriptionInput) {
     const session = await getSession();
     if (!session || session.role !== 'hcp') {
         return { success: false, error: 'Unauthorized' };
     }
     try {
-        const result = await generatePrescription({ diagnosis });
+        const result = await generatePrescription(input);
         return { success: true, data: result };
     } catch (error) {
         console.error('Error generating prescription:', error);
@@ -655,3 +657,5 @@ export async function translateContent(content: ContentToTranslate, language: st
         return { success: false, error: 'Failed to translate content.' };
     }
 }
+
+    

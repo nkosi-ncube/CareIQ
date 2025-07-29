@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -27,7 +28,8 @@ const GenerateDiagnosisOutputSchema = z.object({
     .describe('A concise summary of the diagnosis based on all available information.'),
   potentialConditions: z
     .array(z.string())
-    .describe('A list of potential conditions or differential diagnoses.'),
+    .min(1)
+    .describe('A list of potential conditions or differential diagnoses for the HCP to review.'),
   recommendedNextSteps: z
     .string()
     .describe('A clear, actionable set of recommended next steps for the patient or HCP.'),
@@ -52,7 +54,7 @@ Analyze the following information carefully:
 
 Based on a comprehensive analysis of both the initial symptoms and the detailed notes from the consultation, please provide:
 - A concise summary of your diagnosis.
-- A list of potential conditions or differential diagnoses.
+- A list of potential conditions or differential diagnoses. This list will be presented to the HCP as a checklist to make a final decision.
 - A clear, actionable set of recommended next steps (e.g., "Create a prescription for Amoxicillin," "Recommend a physical visit for a blood test," "No further action needed at this time.").
 `,
 });
@@ -68,3 +70,5 @@ const generateDiagnosisFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

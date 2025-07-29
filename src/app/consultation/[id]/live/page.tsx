@@ -1,3 +1,4 @@
+
 'use client';
 import { useEffect, useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -34,6 +36,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   const [consultationNotes, setConsultationNotes] = useState("");
   const [isGeneratingDiagnosis, startDiagnosisTransition] = useTransition();
   const [aiDiagnosis, setAiDiagnosis] = useState<GenerateDiagnosisOutput | null>(null);
+  const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
   const [isGeneratingPrescription, startPrescriptionTransition] = useTransition();
@@ -133,6 +136,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     if (!data) return;
     startDiagnosisTransition(async () => {
         setAiDiagnosis(null);
+        setSelectedCondition(null);
         setAiPrescription(null);
         const result = await getAIDiagnosis(data.symptomsSummary, consultationNotes);
         if (result.success && result.data) {
@@ -167,11 +171,15 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   }
 
   const handleGeneratePrescription = () => {
-    if (!aiDiagnosis) return;
+    if (!data || !selectedCondition) return;
     startPrescriptionTransition(async () => {
       setAiPrescription(null);
       setIsEditingPrescription(false);
-      const result = await getAIPrescription(aiDiagnosis);
+      const result = await getAIPrescription({
+          symptomsSummary: data.symptomsSummary,
+          consultationNotes,
+          finalDiagnosis: selectedCondition,
+      });
       if(result.success && result.data) {
         setAiPrescription(result.data as GeneratePrescriptionOutput);
       } else {
@@ -439,14 +447,19 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                             </CardHeader>
                             <CardContent className="space-y-3 text-sm">
                                 <div>
-                                    <h4 className="font-semibold">Summary</h4>
+                                    <h4 className="font-semibold">Diagnosis Summary</h4>
                                     <p className="text-muted-foreground">{aiDiagnosis.diagnosisSummary}</p>
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold">Potential Conditions</h4>
-                                    <ul className="list-disc list-inside text-muted-foreground">
-                                       {aiDiagnosis.potentialConditions.map((c,i) => <li key={i}>{c}</li>)}
-                                    </ul>
+                                    <h4 className="font-semibold">Potential Conditions (Select One)</h4>
+                                    <RadioGroup onValueChange={setSelectedCondition} value={selectedCondition || ""}>
+                                        {aiDiagnosis.potentialConditions.map((condition, i) => (
+                                            <div key={i} className="flex items-center space-x-2">
+                                                <RadioGroupItem value={condition} id={`cond-${i}`} />
+                                                <Label htmlFor={`cond-${i}`}>{condition}</Label>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
                                 </div>
                                  <div>
                                     <h4 className="font-semibold">Recommended Next Steps</h4>
@@ -459,7 +472,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                                     Save Diagnosis
                                 </Button>
                                 <hr className='w-full my-2'/>
-                                <Button className="w-full justify-start" variant="outline" onClick={handleGeneratePrescription} disabled={isGeneratingPrescription}>
+                                <Button className="w-full justify-start" variant="outline" onClick={handleGeneratePrescription} disabled={isGeneratingPrescription || !selectedCondition}>
                                     {isGeneratingPrescription ? <Loader className="mr-2 animate-spin"/> : <Pill className="mr-2"/>}
                                     Generate AI Prescription
                                 </Button>
@@ -551,3 +564,5 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     </div>
   );
 }
+
+    
