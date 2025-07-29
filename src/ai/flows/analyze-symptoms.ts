@@ -29,6 +29,12 @@ const AnalyzeSymptomsOutputSchema = z.object({
     .describe(
       'A numerical value (0-1) indicating the confidence level of the AI in its suggestions.'
     ),
+  urgencyLevel: z
+    .enum(['Low', 'Medium', 'High'])
+    .describe('An assessment of the urgency of the situation based on the symptoms.'),
+  recommendedAction: z
+    .string()
+    .describe('A recommended course of action for the user, e.g., "Schedule a routine check-up".'),
 });
 export type AnalyzeSymptomsOutput = z.infer<typeof AnalyzeSymptomsOutputSchema>;
 
@@ -48,10 +54,13 @@ Analyze the following symptoms description:
 
 {{symptomsDescription}}
 
-Based on this description, suggest a list of healthcare professional specializations that would be most appropriate for the user to consult. Also, provide a confidence level (0-1) for your suggestions.
+Based on this description:
+1. Suggest a list of healthcare professional specializations.
+2. Provide a confidence level (0-1) for your suggestions.
+3. Determine an urgency level ('Low', 'Medium', or 'High').
+4. Provide a clear, concise recommended action for the user.
 
-Please output your response as a JSON object conforming to the following schema:
-\n${JSON.stringify(AnalyzeSymptomsOutputSchema.shape, null, 2)}`,
+Please output your response as a JSON object.`,
 });
 
 const analyzeSymptomsFlow = ai.defineFlow(

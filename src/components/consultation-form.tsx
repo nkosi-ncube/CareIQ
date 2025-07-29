@@ -13,10 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getAIMatch, getFollowUpQuestions } from '@/lib/actions';
-import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle } from 'lucide-react';
+import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
 import { Skeleton } from './ui/skeleton';
+import { cn } from '@/lib/utils';
 
 const FormSchema = z.object({
   symptoms: z.string().min(20, { message: 'Please describe your symptoms in at least 20 characters.' }),
@@ -43,7 +44,7 @@ export default function ConsultationForm() {
       const response = await getAIMatch(data.symptoms);
 
       if (response.success && response.data) {
-        setResult(response.data);
+        setResult(response.data as AnalyzeSymptomsOutput);
         setIsFetchingQuestions(true);
         const questionsResponse = await getFollowUpQuestions(data.symptoms);
         if(questionsResponse.success && questionsResponse.data) {
@@ -61,6 +62,41 @@ export default function ConsultationForm() {
       }
     });
   }
+
+  const UrgencyAlert = ({ result }: { result: AnalyzeSymptomsOutput }) => {
+    const { urgencyLevel, recommendedAction } = result;
+    const isHigh = urgencyLevel === 'High';
+    const isMedium = urgencyLevel === 'Medium';
+  
+    const alertClasses = cn("bg-background border-accent/50", {
+      "bg-yellow-100/80 border-yellow-500/50 dark:bg-yellow-900/30": isMedium,
+      "bg-red-100/80 border-destructive/50 dark:bg-red-900/30": isHigh,
+    });
+  
+    const iconClasses = cn("text-accent", {
+        "text-yellow-600 dark:text-yellow-400": isMedium,
+        "text-destructive": isHigh,
+    });
+  
+    const titleClasses = cn("text-accent", {
+        "text-yellow-800 dark:text-yellow-300": isMedium,
+        "text-destructive": isHigh,
+    });
+
+    const Icon = isHigh ? AlertTriangle : isMedium ? Lightbulb : Info;
+  
+    return (
+      <Alert variant="default" className={alertClasses}>
+        <Icon className={cn("h-4 w-4", iconClasses)} />
+        <AlertTitle className={cn("font-headline", titleClasses)}>
+          Urgency Level: {urgencyLevel}
+        </AlertTitle>
+        <AlertDescription>
+          {recommendedAction}
+        </AlertDescription>
+      </Alert>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -126,13 +162,7 @@ export default function ConsultationForm() {
                 </label>
                 <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
                 </div>
-                <Alert variant="default" className="bg-background border-accent/50">
-                <Lightbulb className="h-4 w-4 text-accent" />
-                <AlertTitle className="font-headline text-accent">Next Steps</AlertTitle>
-                <AlertDescription>
-                    We recommend booking an appointment with one of these specialists. You can share this analysis with them during your consultation.
-                </AlertDescription>
-                </Alert>
+                <UrgencyAlert result={result} />
             </CardContent>
             </Card>
 
