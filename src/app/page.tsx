@@ -1,76 +1,19 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CareIqLogo } from "@/components/icons";
-import ConsultationForm from "@/components/consultation-form";
-import CareHistory from "@/components/care-history";
 import { getSession } from "@/lib/actions";
-import AuthButton from "@/components/auth-button";
+import PatientDashboard from "@/components/patient-dashboard";
+import HcpDashboard from "@/components/hcp-dashboard";
 
 export default async function Home() {
   const session = await getSession();
 
-  return (
-    <div className="flex min-h-screen w-full flex-col bg-background">
-      <header className="sticky top-0 z-10 flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:px-6 md:px-8">
-        <div className="flex items-center gap-3">
-          <CareIqLogo className="h-8 w-8 text-primary" />
-          <h1 className="font-headline text-2xl font-bold text-foreground">
-            CareIQ Lite
-          </h1>
-        </div>
-        <AuthButton user={session} />
-      </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 sm:px-6 sm:py-8 md:gap-8 md:p-10">
-        <div className="mx-auto grid w-full max-w-6xl gap-2">
-          <h1 className="font-headline text-3xl font-semibold">Welcome, {session?.name ?? 'Guest'}</h1>
-          <p className="text-muted-foreground">
-            Your personal AI health assistant. Get insights, find specialists, and track your health journey.
-          </p>
-        </div>
+  if (!session) {
+    // Render patient dashboard in logged-out state, which shows login prompts
+    return <PatientDashboard user={null} />;
+  }
 
-        <Tabs defaultValue="consultation" className="mx-auto w-full max-w-6xl">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="consultation" disabled={!session}>New Consultation</TabsTrigger>
-            <TabsTrigger value="history" disabled={!session}>Care History</TabsTrigger>
-          </TabsList>
-          <TabsContent value="consultation">
-             {session ? (
-              <Card className="shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-headline">AI Symptom Analysis</CardTitle>
-                  <CardDescription>
-                    Describe your symptoms below, and our AI will suggest the most relevant specialists for you.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ConsultationForm />
-                </CardContent>
-              </Card>
-             ) : (
-                <Card className="shadow-lg flex flex-col items-center justify-center p-10 text-center">
-                    <CardHeader>
-                        <CardTitle className="font-headline">Please Log In</CardTitle>
-                        <CardDescription>
-                            You need to be logged in to start a new consultation.
-                        </CardDescription>
-                    </CardHeader>
-                </Card>
-             )}
-          </TabsContent>
-          <TabsContent value="history">
-            {session ? <CareHistory /> : (
-                 <Card className="shadow-lg flex flex-col items-center justify-center p-10 text-center">
-                 <CardHeader>
-                     <CardTitle className="font-headline">Please Log In</CardTitle>
-                     <CardDescription>
-                         You need to be logged in to view your care history.
-                     </CardDescription>
-                 </CardHeader>
-             </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
-  );
+  if (session.role === 'hcp') {
+    return <HcpDashboard user={session} />;
+  }
+  
+  // Default to patient dashboard
+  return <PatientDashboard user={session} />;
 }

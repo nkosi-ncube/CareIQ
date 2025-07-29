@@ -1,4 +1,4 @@
-import type { Consultation } from './types';
+import type { Consultation, Patient, HCP } from './types';
 
 export const mockConsultations: Consultation[] = [
   {
@@ -32,3 +32,66 @@ export const patientDetails = {
   age: 34,
   knownConditions: ["Psoriasis", "Seasonal Allergies"],
 };
+
+export const mockPatients: Patient[] = [
+    {
+      id: 'p1',
+      name: 'Liam Neeson',
+      age: 65,
+      lastConsultation: '2024-05-10',
+      riskLevel: 'Medium',
+      symptoms: 'Persistent cough and fatigue',
+      avatarUrl: '/avatars/01.png',
+    },
+    {
+      id: 'p2',
+      name: 'Emma Watson',
+      age: 33,
+      lastConsultation: '2024-05-12',
+      riskLevel: 'Low',
+      symptoms: 'Mild seasonal allergies',
+      avatarUrl: '/avatars/02.png',
+    },
+    {
+        id: 'p3',
+        name: 'Denzel Washington',
+        age: 68,
+        lastConsultation: '2024-04-28',
+        riskLevel: 'High',
+        symptoms: 'High blood pressure readings and occasional dizziness',
+        avatarUrl: '/avatars/03.png',
+    },
+    {
+        id: 'p4',
+        name: 'Scarlett Johansson',
+        age: 39,
+        lastConsultation: '2024-05-15',
+        riskLevel: 'Low',
+        symptoms: 'Follow-up for skin rash',
+        avatarUrl: '/avatars/04.png',
+    },
+    {
+        id: 'p5',
+        name: 'Tom Hanks',
+        age: 67,
+        lastConsultation: '2024-05-01',
+        riskLevel: 'Medium',
+        symptoms: 'Managing Type 2 Diabetes, stable',
+        avatarUrl: '/avatars/05.png',
+    },
+    {
+        id: 'p6',
+        name: 'Zendaya Coleman',
+        age: 27,
+        lastConsultation: '2024-05-18',
+        riskLevel: 'Low',
+        symptoms: 'Annual physical exam',
+        avatarUrl: '/avatars/06.png',
+    }
+];
+
+export const mockHCP: HCP = {
+    name: 'Dr. Evelyn Reed',
+    practiceNumber: 'HCP123456',
+    email: 'evelyn.reed@careiq.pro'
+}

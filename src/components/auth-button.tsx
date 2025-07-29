@@ -13,13 +13,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { logoutUser } from '@/lib/actions';
 import { useRouter } from 'next/navigation';
+import type { UserSession } from '@/lib/types';
 
-type User = {
-  name: string;
-  email: string;
-};
-
-export default function AuthButton({ user }: { user: User | null }) {
+export default function AuthButton({ user }: { user: UserSession | null }) {
   const router = useRouter();
 
   const handleLogout = async () => {
