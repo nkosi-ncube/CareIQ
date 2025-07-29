@@ -6,6 +6,16 @@ import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation'
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { patientDetails } from './mock-data';
 import type { Consultation } from './types';
+import dbConnect from './db';
+import User, { IUser } from '@/models/User';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
+import { z } from 'zod';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+const JWT_EXPIRES_IN = '1d';
+
 
 export async function getAIMatch(symptoms: string, photoDataUri?: string | null) {
   if (!symptoms) {
@@ -28,6 +38,7 @@ export async function getFollowUpQuestions(symptoms: string) {
       return { success: false, error: 'Symptoms description cannot be empty.' };
     }
     try {
+      // TODO: Get patient details from logged in user
       const result = await generateFollowUpQuestions({
         symptomsDescription: symptoms,
         patientDetails: patientDetails,
@@ -72,4 +83,114 @@ export async function transcribeAudioAction(audioDataUri: string) {
         console.error('Error transcribing audio:', error);
         return { success: false, error: 'Failed to transcribe audio due to a server error. Please try again.' };
     }
+}
+
+const registerSchema = z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(8),
+    role: z.enum(['patient', 'hcp']),
+    practiceNumber: z.string().optional(),
+    paymentMethod: z.enum(['cash', 'medicalAid']).optional(),
+    medicalAidName: z.string().optional(),
+    medicalAidMemberNumber: z.string().optional(),
+});
+
+export async function registerUser(data: z.infer<typeof registerSchema>) {
+    try {
+        await dbConnect();
+
+        const existingUser = await User.findOne({ email: data.email });
+        if (existingUser) {
+            return { success: false, error: 'User with this email already exists.' };
+        }
+
+        const hashedPassword = await bcrypt.hash(data.password, 10);
+
+        const userData: Partial<IUser> = {
+            name: data.name,
+            email: data.email,
+            password: hashedPassword,
+            role: data.role,
+        };
+
+        if (data.role === 'hcp') {
+            userData.practiceNumber = data.practiceNumber;
+        } else {
+            userData.paymentMethod = data.paymentMethod;
+            if (data.paymentMethod === 'medicalAid') {
+                userData.medicalAidInfo = {
+                    name: data.medicalAidName!,
+                    memberNumber: data.medicalAidMemberNumber!,
+                };
+            }
+        }
+
+        const newUser = new User(userData);
+        await newUser.save();
+
+        return { success: true, data: { userId: newUser._id } };
+    } catch (error: any) {
+        console.error('Registration error:', error);
+        return { success: false, error: error.message || 'An unexpected error occurred.' };
+    }
+}
+
+const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(1),
+});
+
+export async function loginUser(data: z.infer<typeof loginSchema>) {
+    try {
+        await dbConnect();
+        
+        const user = await User.findOne({ email: data.email }).select('+password');
+
+        if (!user) {
+            return { success: false, error: 'Invalid email or password.' };
+        }
+
+        const isMatch = await bcrypt.compare(data.password, user.password!);
+        if (!isMatch) {
+            return { success: false, error: 'Invalid email or password.' };
+        }
+
+        const payload = {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        };
+
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+        cookies().set('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== 'development',
+            maxAge: 60 * 60 * 24, // 1 day
+            path: '/',
+        });
+
+        return { success: true, data: { name: user.name, email: user.email, role: user.role } };
+    } catch (error: any) {
+        console.error('Login error:', error);
+        return { success: false, error: 'An unexpected error occurred during login.' };
+    }
+}
+
+export async function getSession() {
+    const token = cookies().get('token')?.value;
+    if (!token) return null;
+  
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      return decoded as { id: string; name: string; email: string; role: 'patient' | 'hcp' };
+    } catch (error) {
+      return null;
+    }
+}
+
+export async function logoutUser() {
+    cookies().delete('token');
 }
