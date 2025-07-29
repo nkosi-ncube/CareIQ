@@ -21,7 +21,7 @@ type TranslatableContent = {
 };
 
 
-async function ConsultationSummaryPage({ params }: { params: { id: string } }) {
+function ConsultationSummaryPage({ params }: { params: { id: string } }) {
   const [consultation, setConsultation] = useState<IConsultation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
