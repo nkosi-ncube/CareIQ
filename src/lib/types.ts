@@ -36,6 +36,7 @@ export type UserSession = {
     name: string;
     email: string;
     role: 'patient' | 'hcp';
+    specialty?: string;
 }
 
 export type WaitingRoomData = {

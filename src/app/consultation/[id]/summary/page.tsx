@@ -127,6 +127,13 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
   const prescription = translatedContent?.prescription;
   const symptomsSummary = translatedContent?.symptomsSummary;
 
+  const getHcpTitle = (specialty: string) => {
+    if (!specialty) return '';
+    if (specialty === 'General Practice') return 'Dr.';
+    return specialty;
+  }
+  const hcpTitle = getHcpTitle((consultation.hcp as any).specialty);
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-4xl">
@@ -180,7 +187,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                     </div>
                      <div className="space-y-1">
                         <p className="font-semibold text-primary flex items-center gap-2"><Stethoscope className="h-5 w-5"/> Healthcare Professional</p>
-                        <p className="text-muted-foreground ml-7">{(consultation.hcp as any).name} ({(consultation.hcp as any).specialty})</p>
+                        <p className="text-muted-foreground ml-7">{hcpTitle} {(consultation.hcp as any).name}</p>
                     </div>
                 </div>
                 <Separator className="my-6" />

@@ -199,7 +199,22 @@ export async function getSession() {
   
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      return decoded as UserSession;
+      if (typeof decoded === 'string') return null;
+
+      // Fetch user from DB to get latest info like specialty
+      await dbConnect();
+      const user = await User.findById( (decoded as any).id ).lean();
+      if (!user) return null;
+
+      const sessionData: UserSession = {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        specialty: user.specialty,
+      }
+      
+      return sessionData;
     } catch (error) {
       return null;
     }
@@ -527,6 +542,7 @@ export async function getHcpConsultationHistory() {
         status: 'completed' 
       })
       .populate('patient', 'name')
+      .populate('hcp', 'name specialty')
       .sort({ createdAt: -1 })
       .lean();
   

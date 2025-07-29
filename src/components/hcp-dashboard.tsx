@@ -86,6 +86,13 @@ function HistoryTab() {
         return <Alert variant="destructive"><AlertTriangle/><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
     }
 
+    const getHcpTitle = (specialty: string) => {
+        if (!specialty) return '';
+        if (specialty === 'General Practice') return 'Dr.';
+        // For 'Psychiatry', the user mentioned 'Psychotherapist'. We'll assume other specialties can be used as titles.
+        return specialty;
+    }
+
     return (
         <Card>
            <CardHeader>
@@ -110,7 +117,7 @@ function HistoryTab() {
                                         <AvatarFallback>{(c.patient as any).name.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <p className="font-bold text-lg">{(c.patient as any).name}</p>
+                                        <p className="font-bold text-lg">Consultation with {getHcpTitle((c.hcp as any).specialty)} {(c.patient as any).name}</p>
                                         <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                                             <Calendar className="h-4 w-4"/> 
                                             {new Date(c.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -173,6 +180,14 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
         toast({ variant: "destructive", title: "Error", description: result.error});
     }
   }
+  
+  const getHcpTitle = (specialty?: string) => {
+    if (!specialty) return '';
+    if (specialty === 'General Practice') return 'Dr.';
+    return specialty;
+  }
+
+  const title = getHcpTitle((user as any).specialty);
 
 
   return (
@@ -196,7 +211,7 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
         <div className="mx-auto grid w-full max-w-7xl gap-2">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="font-headline text-3xl font-semibold">Welcome, {user.name}</h1>
+                    <h1 className="font-headline text-3xl font-semibold">Welcome, {title} {user.name}</h1>
                     <p className="text-muted-foreground">
                         Here's your intelligent patient queue for today.
                     </p>

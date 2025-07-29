@@ -69,6 +69,14 @@ export default function WaitingRoomPage({ params }: { params: { id: string } }) 
     return null;
   }
 
+  const getHcpTitle = (specialty: string) => {
+    if (!specialty) return '';
+    if (specialty === 'General Practice') return 'Dr.';
+    return specialty;
+  }
+  const hcpTitle = getHcpTitle(data.hcp.specialty);
+
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <header className="absolute top-0 left-0 right-0 p-6 flex items-center gap-3">
@@ -93,7 +101,7 @@ export default function WaitingRoomPage({ params }: { params: { id: string } }) 
             </Avatar>
             <div>
               <p className="text-muted-foreground">You are waiting for</p>
-              <p className="font-bold text-xl">{data.hcp.name}</p>
+              <p className="font-bold text-xl">{hcpTitle} {data.hcp.name}</p>
               <p className="text-sm text-muted-foreground">{data.hcp.specialty}</p>
             </div>
           </div>

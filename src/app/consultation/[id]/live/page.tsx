@@ -265,6 +265,12 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     }
   };
   
+  const getHcpTitle = (specialty?: string) => {
+    if (!specialty) return '';
+    if (specialty === 'General Practice') return 'Dr.';
+    return specialty;
+  }
+
   if (isLoading) {
     return (
         <div className="flex h-screen w-full flex-col bg-background p-4">
@@ -298,6 +304,8 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
 
   if (!data) return null;
 
+  const hcpTitle = getHcpTitle(data.hcp.specialty);
+
 
   return (
     <div className="flex h-screen w-full flex-col bg-background">
@@ -320,7 +328,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
             {/* HCP Video Feed (Placeholder) */}
              <div className="absolute top-4 left-4 h-48 w-64 bg-card rounded-lg border flex items-center justify-center text-muted-foreground">
                 <VideoOff className="h-12 w-12"/>
-                <p className="absolute bottom-2 left-2 text-sm font-semibold">{data.hcp.name}</p>
+                <p className="absolute bottom-2 left-2 text-sm font-semibold">{hcpTitle} {data.hcp.name}</p>
             </div>
             
             {/* Patient Video Feed */}
@@ -543,5 +551,3 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     </div>
   );
 }
-
-    
