@@ -9,6 +9,7 @@ export interface IConsultation extends Document {
   aiAnalysis: object;
   consultationNotes?: string;
   postConsultationSummary?: string;
+  aiDiagnosis?: object;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +27,7 @@ const consultationSchema = new Schema<IConsultation>({
   aiAnalysis: { type: Object, required: true },
   consultationNotes: { type: String },
   postConsultationSummary: { type: String },
+  aiDiagnosis: { type: Object },
 }, { timestamps: true });
 
 const ConsultationModel: Model<IConsultation> = mongoose.models.Consultation || mongoose.model<IConsultation>('Consultation', consultationSchema);

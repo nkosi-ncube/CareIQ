@@ -1,13 +1,14 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance } from "lucide-react";
-import { updateConsultationStatus, getWaitingRoomData } from '@/lib/actions';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, AlertTriangle, Sparkles, Save } from "lucide-react";
+import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { WaitingRoomData } from '@/lib/types';
+import type { GenerateDiagnosisOutput } from '@/ai/flows/generate-diagnosis';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -24,6 +25,12 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   const [isCameraOn, setIsCameraOn] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const [consultationNotes, setConsultationNotes] = useState("");
+  const [isGeneratingDiagnosis, startDiagnosisTransition] = useTransition();
+  const [aiDiagnosis, setAiDiagnosis] = useState<GenerateDiagnosisOutput | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,6 +114,42 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
       setIsEndingCall(false);
     }
   };
+
+  const handleGenerateDiagnosis = () => {
+    if (!data) return;
+    startDiagnosisTransition(async () => {
+        setAiDiagnosis(null);
+        const result = await getAIDiagnosis(data.symptomsSummary, consultationNotes);
+        if (result.success && result.data) {
+            setAiDiagnosis(result.data as GenerateDiagnosisOutput);
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Diagnosis Failed',
+                description: result.error,
+            });
+        }
+    });
+  }
+
+  const handleSaveDiagnosis = async () => {
+    if (!aiDiagnosis) return;
+    setIsSaving(true);
+    const result = await saveDiagnosis(params.id, aiDiagnosis);
+    if (result.success) {
+        toast({
+            title: 'Diagnosis Saved',
+            description: 'The AI-generated diagnosis has been saved to the consultation record.',
+        });
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Save Failed',
+            description: result.error,
+        });
+    }
+    setIsSaving(false);
+  }
   
   if (isLoading) {
     return (
@@ -156,7 +199,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
         </div>
       </header>
 
-      <main className="flex-1 grid md:grid-cols-3 gap-4 p-4">
+      <main className="flex-1 grid md:grid-cols-3 gap-4 p-4 overflow-y-auto">
         {/* Main Video Area */}
         <div className="md:col-span-2 h-full flex flex-col gap-4">
           <div className="flex-1 relative bg-muted rounded-lg flex items-center justify-center">
@@ -222,14 +265,63 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
 
                     <div className="pt-4">
                         <h3 className="font-semibold mb-2">Consultation Notes</h3>
-                        <textarea className="w-full h-48 p-2 border rounded-md" placeholder="HCP starts typing notes here..."></textarea>
+                        <textarea 
+                            className="w-full h-48 p-2 border rounded-md" 
+                            placeholder="HCP starts typing notes here..."
+                            value={consultationNotes}
+                            onChange={(e) => setConsultationNotes(e.target.value)}
+                        />
                     </div>
                 </CardContent>
-                <CardFooter className="flex flex-col gap-2">
+                <CardFooter className="flex flex-col gap-2 items-start">
                     <h3 className="font-headline text-lg font-semibold w-full">Post-Consultation Actions</h3>
-                    <Button className="w-full justify-start" variant="outline"><Bot className="mr-2"/> Generate AI Diagnosis</Button>
-                    <Button className="w-full justify-start" variant="outline"><FileText className="mr-2"/> Create Prescription</Button>
-                    <Button className="w-full justify-start" variant="outline"><Ambulance className="mr-2"/> Recommend Physical Visit</Button>
+                    
+                    {isGeneratingDiagnosis && (
+                         <div className="flex items-center gap-2 text-primary w-full p-2">
+                            <Loader className="animate-spin" />
+                            <span>Generating diagnosis...</span>
+                        </div>
+                    )}
+                    
+                    {aiDiagnosis && (
+                        <Card className="w-full bg-primary/5 border-primary/20">
+                            <CardHeader>
+                                <CardTitle className="font-headline text-lg flex items-center gap-2 text-primary">
+                                    <Sparkles/> AI Generated Diagnosis
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                <div>
+                                    <h4 className="font-semibold">Summary</h4>
+                                    <p className="text-muted-foreground">{aiDiagnosis.diagnosisSummary}</p>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold">Potential Conditions</h4>
+                                    <ul className="list-disc list-inside text-muted-foreground">
+                                       {aiDiagnosis.potentialConditions.map((c,i) => <li key={i}>{c}</li>)}
+                                    </ul>
+                                </div>
+                                 <div>
+                                    <h4 className="font-semibold">Recommended Next Steps</h4>
+                                    <p className="text-muted-foreground">{aiDiagnosis.recommendedNextSteps}</p>
+                                </div>
+                            </CardContent>
+                            <CardFooter>
+                                <Button size="sm" onClick={handleSaveDiagnosis} disabled={isSaving}>
+                                    {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                                    Save Diagnosis
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    )}
+
+                    <div className="flex flex-col gap-2 w-full pt-2">
+                        <Button className="w-full justify-start" variant="outline" onClick={handleGenerateDiagnosis} disabled={isGeneratingDiagnosis || !consultationNotes}>
+                            <Bot className="mr-2"/> Generate AI Diagnosis
+                        </Button>
+                        <Button className="w-full justify-start" variant="outline"><FileText className="mr-2"/> Create Prescription</Button>
+                        <Button className="w-full justify-start" variant="outline"><Ambulance className="mr-2"/> Recommend Physical Visit</Button>
+                    </div>
                 </CardFooter>
             </Card>
         </div>

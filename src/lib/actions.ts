@@ -4,6 +4,7 @@ import { analyzeSymptomsForConsultation } from '@/ai/flows/analyze-symptoms';
 import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questions';
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
+import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import { patientDetails } from './mock-data';
 import type { Consultation, UserSession } from './types';
 import dbConnect from './db';
@@ -362,3 +363,45 @@ export async function updateConsultationStatus(consultationId: string, status: '
       return { success: false, error: 'A server error occurred while updating the consultation.' };
     }
   }
+
+
+  export async function getAIDiagnosis(symptomsSummary: string, consultationNotes: string) {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    if (!consultationNotes) {
+        return { success: false, error: 'Consultation notes cannot be empty.' };
+    }
+    try {
+        const result = await generateDiagnosis({ symptomsSummary, consultationNotes });
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error generating diagnosis:', error);
+        return { success: false, error: 'Failed to generate AI diagnosis.' };
+    }
+}
+
+export async function saveDiagnosis(consultationId: string, diagnosis: any) {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    try {
+        await dbConnect();
+        const consultation = await ConsultationModel.findById(consultationId);
+        if (!consultation) {
+            return { success: false, error: 'Consultation not found.' };
+        }
+        if (consultation.hcp.toString() !== session.id) {
+            return { success: false, error: 'You are not authorized to update this consultation.' };
+        }
+        consultation.aiDiagnosis = diagnosis;
+        consultation.postConsultationSummary = diagnosis.diagnosisSummary;
+        await consultation.save();
+        return { success: true };
+    } catch (error) {
+        console.error('Error saving diagnosis:', error);
+        return { success: false, error: 'Failed to save diagnosis.' };
+    }
+}
