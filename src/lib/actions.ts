@@ -235,7 +235,7 @@ export async function findAvailableHCPs(specialties: string[]) {
         // In a real app, this would check a status field.
         const hcps = await User.find({
             role: 'hcp',
-            // specialty: { $in: specialties }
+            // specialty: { $in: specialties } // Temporarily disabled to ensure results
         }).lean();
         
         if (!hcps || hcps.length === 0) {
