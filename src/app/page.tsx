@@ -2,6 +2,7 @@ import { getSession } from "@/lib/actions";
 import Dashboard from "@/components/dashboard";
 import LandingPage from "@/components/landing-page";
 
+//hh
 export default async function Home() {
   const session = await getSession();
 
