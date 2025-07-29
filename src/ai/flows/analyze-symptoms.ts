@@ -21,6 +21,7 @@ const AnalyzeSymptomsInputSchema = z.object({
     .describe(
       "An optional photo of a symptom, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  followUpAnswers: z.string().optional().describe("The user's answers to the AI-generated follow-up questions, if any."),
 });
 export type AnalyzeSymptomsInput = z.infer<typeof AnalyzeSymptomsInputSchema>;
 
@@ -54,7 +55,7 @@ const prompt = ai.definePrompt({
   name: 'analyzeSymptomsPrompt',
   input: {schema: AnalyzeSymptomsInputSchema},
   output: {schema: AnalyzeSymptomsOutputSchema},
-  prompt: `You are an AI assistant designed to analyze a user's description of their symptoms and suggest relevant healthcare professionals for a consultation. You may also be provided with a photo for visual analysis.
+  prompt: `You are an AI assistant designed to analyze a user's description of their symptoms and suggest relevant healthcare professionals for a consultation. You may also be provided with a photo for visual analysis and answers to follow-up questions you previously generated.
 
 Analyze the following symptoms description:
 {{symptomsDescription}}
@@ -64,7 +65,13 @@ You have also been provided with a photo of the symptom. Analyze it carefully.
 Photo: {{media url=photoDataUri}}
 {{/if}}
 
-Based on all the information provided (text and/or photo):
+{{#if followUpAnswers}}
+The user has also provided answers to your follow-up questions. Use this additional information to refine your analysis and provide a more accurate recommendation.
+Follow-up Answers:
+{{{followUpAnswers}}}
+{{/if}}
+
+Based on all the information provided (text, photo, and answers):
 1. Suggest a list of healthcare professional specializations.
 2. Provide a confidence level (0-1) for your suggestions.
 3. Determine an urgency level ('Low', 'Medium', or 'High').

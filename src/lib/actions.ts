@@ -22,7 +22,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 const JWT_EXPIRES_IN = '1d';
 
 
-export async function getAIMatch(symptoms: string, photoDataUri?: string | null) {
+export async function getAIMatch(symptoms: string, photoDataUri?: string | null, followUpAnswers?: string) {
   if (!symptoms) {
     return { success: false, error: 'Symptoms description cannot be empty.' };
   }
@@ -30,6 +30,7 @@ export async function getAIMatch(symptoms: string, photoDataUri?: string | null)
     const result = await analyzeSymptomsForConsultation({
       symptomsDescription: symptoms,
       photoDataUri: photoDataUri || undefined,
+      followUpAnswers: followUpAnswers || undefined,
     });
     return { success: true, data: result };
   } catch (error) {

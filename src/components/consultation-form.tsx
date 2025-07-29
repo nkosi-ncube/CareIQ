@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getAIMatch, getFollowUpQuestions, findAvailableHCPs, createConsultation, transcribeAudioAction } from '@/lib/actions';
-import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video } from 'lucide-react';
+import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video, Send } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
 import { Skeleton } from './ui/skeleton';
@@ -28,11 +28,15 @@ const FormSchema = z.object({
   symptoms: z.string().min(20, { message: 'Please describe your symptoms in at least 20 characters.' }),
 });
 
+type FormStep = "symptomInput" | "questionAnswer" | "analysis" | "hcpList";
+
 export default function ConsultationForm() {
   const router = useRouter();
+  const [step, setStep] = useState<FormStep>("symptomInput");
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AnalyzeSymptomsOutput | null>(null);
   const [questions, setQuestions] = useState<GenerateFollowUpQuestionsOutput | null>(null);
+  const [answers, setAnswers] = useState<string[]>([]);
   const [isFetchingQuestions, setIsFetchingQuestions] = useState(false);
   const [photo, setPhoto] = useState<{ file: File | null; dataUri: string | null }>({ file: null, dataUri: null });
   const [availableHCPs, setAvailableHCPs] = useState<HCP[]>([]);
@@ -114,44 +118,66 @@ export default function ConsultationForm() {
     setPhoto({ file: null, dataUri: null });
   }
 
-  async function onSubmit(data: z.infer<typeof FormSchema>) {
+  async function onSymptomSubmit(data: z.infer<typeof FormSchema>) {
+    setIsFetchingQuestions(true);
+    setStep("questionAnswer");
     startTransition(async () => {
-      setResult(null);
-      setQuestions(null);
-      setAvailableHCPs([]);
-      const response = await getAIMatch(data.symptoms, photo.dataUri);
-
-      if (response.success && response.data) {
-        const analysisResult = response.data as AnalyzeSymptomsOutput;
-        setResult(analysisResult);
-
-        setIsFetchingQuestions(true);
-        getFollowUpQuestions(data.symptoms).then(questionsResponse => {
-            if(questionsResponse.success && questionsResponse.data) {
-                setQuestions(questionsResponse.data);
-            }
-            setIsFetchingQuestions(false);
-        });
-
-        setIsFindingHCPs(true);
-        findAvailableHCPs(analysisResult.suggestedProfessionals).then(hcpResponse => {
-            if(hcpResponse.success && hcpResponse.data) {
-                setAvailableHCPs(hcpResponse.data);
-            } else {
-                toast({ variant: 'default', title: 'Could not find HCPs', description: hcpResponse.error});
-            }
-            setIsFindingHCPs(false);
-        });
-
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Analysis Failed',
-          description: response.error,
-        });
-      }
+        const questionsResponse = await getFollowUpQuestions(data.symptoms);
+        if(questionsResponse.success && questionsResponse.data) {
+            setQuestions(questionsResponse.data);
+            setAnswers(new Array(questionsResponse.data.questions.length).fill(''));
+        } else {
+            // If fetching questions fails, proceed directly to analysis
+            toast({
+                title: "Couldn't generate follow-up questions.",
+                description: "Proceeding with initial analysis.",
+                variant: "default"
+            });
+            await onAnswerSubmit();
+        }
+        setIsFetchingQuestions(false);
     });
   }
+
+  async function onAnswerSubmit() {
+    setIsFetchingQuestions(false);
+    setStep('analysis');
+
+    startTransition(async () => {
+        let followUpAnswers = "";
+        if (questions && answers.some(a => a.trim() !== '')) {
+            followUpAnswers = questions.questions
+                .map((q, i) => `Q: ${q}\nA: ${answers[i] || 'Not answered'}`)
+                .join('\n\n');
+        }
+
+        const response = await getAIMatch(form.getValues('symptoms'), photo.dataUri, followUpAnswers);
+
+        if (response.success && response.data) {
+            const analysisResult = response.data as AnalyzeSymptomsOutput;
+            setResult(analysisResult);
+            setStep('hcpList');
+
+            setIsFindingHCPs(true);
+            findAvailableHCPs(analysisResult.suggestedProfessionals).then(hcpResponse => {
+                if(hcpResponse.success && hcpResponse.data) {
+                    setAvailableHCPs(hcpResponse.data);
+                } else {
+                    toast({ variant: 'default', title: 'Could not find HCPs', description: hcpResponse.error});
+                }
+                setIsFindingHCPs(false);
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Analysis Failed',
+                description: response.error,
+            });
+            setStep('symptomInput'); // Go back to start on failure
+        }
+    });
+  }
+
 
   const handleBookConsultation = async (hcp: HCP) => {
     setIsBooking(true);
@@ -172,6 +198,12 @@ export default function ConsultationForm() {
         });
     }
   }
+  
+  const handleAnswerChange = (index: number, value: string) => {
+    const newAnswers = [...answers];
+    newAnswers[index] = value;
+    setAnswers(newAnswers);
+  };
 
   const UrgencyAlert = ({ result }: { result: AnalyzeSymptomsOutput }) => {
     const { urgencyLevel, recommendedAction } = result;
@@ -210,9 +242,9 @@ export default function ConsultationForm() {
 
   return (
     <div className="space-y-6">
-      {!result && (
+      {step === "symptomInput" && (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
+            <form onSubmit={form.handleSubmit(onSymptomSubmit)} className="grid gap-4 md:grid-cols-2">
             <div className="space-y-4">
                 <FormField
                 control={form.control}
@@ -279,84 +311,94 @@ export default function ConsultationForm() {
             </div>
 
             <div className="md:col-span-2">
-                <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-                    {isPending ? 'Analyzing...' : 'Find a Specialist'}
-                    {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
+                <Button type="submit" disabled={isPending || isFetchingQuestions} className="w-full sm:w-auto">
+                    {isPending || isFetchingQuestions ? 'Thinking...' : 'Get Follow-up Questions'}
+                    {!(isPending || isFetchingQuestions) && <Sparkles className="ml-2 h-4 w-4" />}
                 </Button>
             </div>
             </form>
         </Form>
       )}
 
-      {isPending && !result && (
+      {step === "questionAnswer" && (
         <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-3/4 rounded-md" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-10 w-full rounded-md" />
-            <Skeleton className="h-4 w-1/2 rounded-md" />
-          </CardContent>
+            <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                    <HelpCircle className="text-primary"/> Just a few more questions...
+                </CardTitle>
+                <CardDescription>To give you the best recommendation, please answer these questions.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isFetchingQuestions && (
+                     <div className="space-y-4">
+                        <Skeleton className="h-5 w-5/6 rounded-md" />
+                        <Skeleton className="h-8 w-full rounded-md" />
+                        <Skeleton className="h-5 w-4/6 rounded-md" />
+                        <Skeleton className="h-8 w-full rounded-md" />
+                    </div>
+                )}
+                {questions && (
+                    <form onSubmit={(e) => { e.preventDefault(); onAnswerSubmit(); }} className="space-y-4">
+                        {questions.questions.map((q, i) => (
+                           <FormItem key={i}>
+                                <FormLabel>{q}</FormLabel>
+                                <FormControl>
+                                    <Input 
+                                        placeholder="Your answer..."
+                                        value={answers[i]}
+                                        onChange={(e) => handleAnswerChange(i, e.target.value)}
+                                    />
+                                </FormControl>
+                           </FormItem>
+                        ))}
+                         <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+                            {isPending ? 'Analyzing...' : 'Find a Specialist'}
+                            {!isPending && <Send className="ml-2 h-4 w-4" />}
+                        </Button>
+                    </form>
+                )}
+            </CardContent>
         </Card>
       )}
 
-      {result && (
-        <div className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card className="bg-primary/5 border-primary/20">
-                    <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2">
-                        <Stethoscope className="text-primary" />
-                        AI Analysis Results
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-wrap gap-2">
-                        {result.suggestedProfessionals.map((prof) => (
-                            <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
-                            {prof}
-                            </Badge>
-                        ))}
-                        </div>
-                        <div>
-                        <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
-                            Confidence Level
-                        </label>
-                        <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
-                        </div>
-                        <UrgencyAlert result={result} />
-                    </CardContent>
-                </Card>
+      {(step === 'analysis' || step === 'hcpList') && isPending && (
+         <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Analyzing your answers...</CardTitle>
+                <CardDescription>Our AI is analyzing your information to find the best specialists for you.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center p-8">
+                <Loader className="h-12 w-12 animate-spin text-primary" />
+            </CardContent>
+        </Card>
+      )}
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2">
-                            <HelpCircle className="text-primary"/>
-                            Follow-up Questions
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {isFetchingQuestions && (
-                            <div className="space-y-3">
-                                <Skeleton className="h-5 w-5/6 rounded-md" />
-                                <Skeleton className="h-5 w-full rounded-md" />
-                                <Skeleton className="h-5 w-4/6 rounded-md" />
-                            </div>
-                        )}
-                        {questions && (
-                            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-                                {questions.questions.map((q, i) => (
-                                    <li key={i}>{q}</li>
-                                ))}
-                            </ul>
-                        )}
-                        {!isFetchingQuestions && !questions && (
-                            <p className="text-sm text-muted-foreground">No follow-up questions generated.</p>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+      {step === "hcpList" && result && (
+        <div className="space-y-6">
+            <Card className="bg-primary/5 border-primary/20">
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                    <Stethoscope className="text-primary" />
+                    AI Analysis Results
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                    {result.suggestedProfessionals.map((prof) => (
+                        <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
+                        {prof}
+                        </Badge>
+                    ))}
+                    </div>
+                    <div>
+                    <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
+                        Confidence Level
+                    </label>
+                    <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
+                    </div>
+                    <UrgencyAlert result={result} />
+                </CardContent>
+            </Card>
             
             <Card>
                 <CardHeader>
@@ -416,7 +458,7 @@ export default function ConsultationForm() {
         </div>
       )}
       
-      {!isPending && !result && (
+      {step === 'symptomInput' && (
         <Alert variant="default" className="bg-background">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle className="font-headline">Disclaimer</AlertTitle>
