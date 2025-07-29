@@ -1,17 +1,37 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader } from "lucide-react";
-import { updateConsultationStatus } from '@/lib/actions';
+import { updateConsultationStatus, getWaitingRoomData } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
+import type { WaitingRoomData } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { toast } = useToast();
   const [isEndingCall, setIsEndingCall] = useState(false);
+  const [data, setData] = useState<WaitingRoomData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const result = await getWaitingRoomData(params.id);
+      if (result.success) {
+        setData(result.data as WaitingRoomData);
+      } else {
+        setError(result.error ?? "An unknown error occurred.");
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, [params.id]);
 
   const handleEndCall = async () => {
     setIsEndingCall(true);
@@ -32,6 +52,40 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
       setIsEndingCall(false);
     }
   };
+  
+  if (isLoading) {
+    return (
+        <div className="flex h-screen w-full flex-col bg-background p-4">
+             <header className="flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 sm:px-6">
+                <Skeleton className="h-8 w-64"/>
+                <Skeleton className="h-6 w-48"/>
+            </header>
+            <main className="flex-1 grid md:grid-cols-3 gap-4 p-4">
+                <div className="md:col-span-2 h-full flex flex-col gap-4">
+                    <Skeleton className="flex-1 rounded-lg"/>
+                    <Skeleton className="h-24 rounded-lg"/>
+                </div>
+                <div className="h-full">
+                    <Skeleton className="h-full rounded-lg"/>
+                </div>
+            </main>
+        </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Alert variant="destructive" className="max-w-lg">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
 
   return (
     <div className="flex h-screen w-full flex-col bg-background">
@@ -54,13 +108,13 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
             {/* HCP Video Feed */}
              <div className="absolute top-4 left-4 h-48 w-64 bg-card rounded-lg border flex items-center justify-center text-muted-foreground">
                 <VideoOff className="h-12 w-12"/>
-                <p className="absolute bottom-2 left-2 text-sm font-semibold">Dr. Evelyn Reed</p>
+                <p className="absolute bottom-2 left-2 text-sm font-semibold">{data.hcp.name}</p>
             </div>
             
              {/* Patient Video Feed */}
             <div className="h-full w-full bg-card rounded-lg border flex items-center justify-center text-muted-foreground flex-col gap-4">
                 <User className="h-32 w-32"/>
-                <p className="text-xl font-semibold">You</p>
+                <p className="text-xl font-semibold">{data.patient.name} (You)</p>
             </div>
           </div>
           {/* Controls */}
@@ -88,12 +142,12 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                 <CardContent className="flex-1 space-y-4">
                     <div>
                         <h3 className="font-semibold flex items-center gap-2"><User className="text-primary"/> Patient</h3>
-                        <p className="text-muted-foreground ml-6">Alex Doe</p>
+                        <p className="text-muted-foreground ml-6">{data.patient.name}</p>
                     </div>
                      <div>
                         <h3 className="font-semibold flex items-center gap-2"><Stethoscope className="text-primary"/> Symptoms Summary</h3>
                         <p className="text-muted-foreground ml-6 text-sm">
-                            "For the past week, I've had a persistent dry cough, a low-grade fever, and a headache."
+                            "{data.symptomsSummary}"
                         </p>
                     </div>
 

@@ -40,6 +40,7 @@ export type UserSession = {
 export type WaitingRoomData = {
     consultationId: string;
     status: 'waiting' | 'active' | 'completed' | 'cancelled';
+    symptomsSummary: string;
     hcp: {
         name: string;
         specialty: string;

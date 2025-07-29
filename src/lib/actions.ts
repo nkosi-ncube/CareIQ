@@ -284,6 +284,7 @@ export async function getWaitingRoomData(consultationId: string) {
             data: {
                 consultationId: consultation._id.toString(),
                 status: consultation.status,
+                symptomsSummary: consultation.symptomsSummary,
                 hcp: {
                     name: (consultation.hcp as any).name,
                     specialty: (consultation.hcp as any).specialty,
