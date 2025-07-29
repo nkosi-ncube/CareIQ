@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   const [isGeneratingPrescription, startPrescriptionTransition] = useTransition();
   const [aiPrescription, setAiPrescription] = useState<GeneratePrescriptionOutput | null>(null);
   const [isApproving, setIsApproving] = useState(false);
+  const [isEditingPrescription, setIsEditingPrescription] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -168,6 +170,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     if (!aiDiagnosis) return;
     startPrescriptionTransition(async () => {
       setAiPrescription(null);
+      setIsEditingPrescription(false);
       const result = await getAIPrescription(aiDiagnosis);
       if(result.success && result.data) {
         setAiPrescription(result.data as GeneratePrescriptionOutput);
@@ -190,6 +193,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
             title: 'Prescription Approved',
             description: 'The prescription has been saved.',
         });
+        setIsEditingPrescription(false);
     } else {
         toast({
             variant: 'destructive',
@@ -198,6 +202,18 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
         });
     }
     setIsApproving(false);
+  }
+
+  const handlePrescriptionChange = (index: number, field: string, value: string) => {
+    if (!aiPrescription) return;
+    const updatedMedications = [...aiPrescription.medications];
+    (updatedMedications[index] as any)[field] = value;
+    setAiPrescription({ ...aiPrescription, medications: updatedMedications });
+  };
+  
+  const handleNotesChange = (value: string) => {
+    if (!aiPrescription) return;
+    setAiPrescription({ ...aiPrescription, notes: value });
   }
 
   const startRecording = async () => {
@@ -222,7 +238,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                   toast({
                       variant: 'destructive',
                       title: 'Transcription Failed',
-                      description: response.error,
+                      description: response.error ?? 'Unknown error',
                   });
               }
               setRecordingStatus('idle');
@@ -459,25 +475,59 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3 text-sm">
-                                {aiPrescription.medications.map((med, i) => (
-                                    <div key={i} className="p-2 border-b last:border-b-0">
-                                        <p className="font-bold">{med.name}</p>
-                                        <p className="text-muted-foreground">{med.dosage} - {med.frequency}</p>
-                                        <p className="text-xs text-muted-foreground/80 mt-1">Reason: {med.reason}</p>
+                                {isEditingPrescription ? (
+                                    <div className="space-y-4">
+                                        {aiPrescription.medications.map((med, i) => (
+                                            <div key={i} className="p-2 border-b last:border-b-0 grid grid-cols-3 gap-2 items-end">
+                                                <div className="col-span-3">
+                                                    <Label htmlFor={`med-name-${i}`} className="text-xs font-semibold">Medication Name</Label>
+                                                    <Input id={`med-name-${i}`} value={med.name} onChange={(e) => handlePrescriptionChange(i, 'name', e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor={`med-dosage-${i}`} className="text-xs font-semibold">Dosage</Label>
+                                                    <Input id={`med-dosage-${i}`} value={med.dosage} onChange={(e) => handlePrescriptionChange(i, 'dosage', e.target.value)} />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <Label htmlFor={`med-frequency-${i}`} className="text-xs font-semibold">Frequency</Label>
+                                                    <Input id={`med-frequency-${i}`} value={med.frequency} onChange={(e) => handlePrescriptionChange(i, 'frequency', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                         <div>
+                                            <Label htmlFor="notes" className="font-semibold mt-2">Notes</Label>
+                                            <Textarea id="notes" value={aiPrescription.notes} onChange={(e) => handleNotesChange(e.target.value)} />
+                                        </div>
                                     </div>
-                                ))}
-                                 <div>
-                                    <h4 className="font-semibold mt-2">Notes</h4>
-                                    <p className="text-muted-foreground">{aiPrescription.notes}</p>
-                                </div>
+                                ) : (
+                                    <>
+                                        {aiPrescription.medications.map((med, i) => (
+                                            <div key={i} className="p-2 border-b last:border-b-0">
+                                                <p className="font-bold">{med.name}</p>
+                                                <p className="text-muted-foreground">{med.dosage} - {med.frequency}</p>
+                                                <p className="text-xs text-muted-foreground/80 mt-1">Reason: {med.reason}</p>
+                                            </div>
+                                        ))}
+                                        <div>
+                                            <h4 className="font-semibold mt-2">Notes</h4>
+                                            <p className="text-muted-foreground">{aiPrescription.notes}</p>
+                                        </div>
+                                    </>
+                                )}
                             </CardContent>
                             <CardFooter className='flex gap-2'>
-                               <Button size="sm" variant="default" onClick={handleApprovePrescription} disabled={isApproving}>
-                                    {isApproving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} 
-                                    Approve
-                               </Button>
-                               <Button size="sm" variant="outline">
-                                    <Pencil className="mr-2 h-4 w-4"/> Edit
+                               {isEditingPrescription ? (
+                                    <Button size="sm" variant="default" onClick={handleApprovePrescription} disabled={isApproving}>
+                                        {isApproving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
+                                        Save Changes
+                                    </Button>
+                               ) : (
+                                    <Button size="sm" variant="default" onClick={handleApprovePrescription} disabled={isApproving}>
+                                        {isApproving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} 
+                                        Approve
+                                    </Button>
+                               )}
+                               <Button size="sm" variant="outline" onClick={() => setIsEditingPrescription(!isEditingPrescription)}>
+                                    <Pencil className="mr-2 h-4 w-4"/> {isEditingPrescription ? 'Cancel' : 'Edit'}
                                 </Button>
                             </CardFooter>
                         </Card>
