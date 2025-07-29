@@ -1,49 +1,167 @@
 
-import { getConsultationSummary } from '@/lib/actions';
+'use client'
+
+import { useEffect, useState, useTransition } from 'react';
+import { getConsultationSummary, translateContent } from '@/lib/actions';
 import { CareIqLogo } from '@/components/icons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Calendar, Stethoscope, User, FileText, Pill, AlertTriangle } from 'lucide-react';
+import { Calendar, Stethoscope, User, FileText, Pill, AlertTriangle, Loader } from 'lucide-react';
 import type { IConsultation } from '@/models/Consultation';
 import type { GenerateDiagnosisOutput } from '@/ai/flows/generate-diagnosis';
+import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescription';
 import PrescriptionCard from './prescription-card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type TranslatableContent = {
+    symptomsSummary: string;
+    diagnosis?: GenerateDiagnosisOutput;
+    prescription?: GeneratePrescriptionOutput;
+};
 
 
 async function ConsultationSummaryPage({ params }: { params: { id: string } }) {
-  const result = await getConsultationSummary(params.id);
+  const [consultation, setConsultation] = useState<IConsultation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!result.success) {
+  const [translatedContent, setTranslatedContent] = useState<TranslatableContent | null>(null);
+  const [isTranslating, startTranslateTransition] = useTransition();
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+        setIsLoading(true);
+        const result = await getConsultationSummary(params.id);
+        if (result.success) {
+            const data = result.data as IConsultation;
+            setConsultation(data);
+            setTranslatedContent({
+                symptomsSummary: data.symptomsSummary,
+                diagnosis: data.aiDiagnosis as GenerateDiagnosisOutput,
+                prescription: data.aiPrescription as GeneratePrescriptionOutput,
+            });
+        } else {
+            setError(result.error as string);
+        }
+        setIsLoading(false);
+    }
+    fetchSummary();
+  }, [params.id]);
+
+  const handleLanguageChange = async (language: string) => {
+    if (!consultation || language === 'en') {
+        setTranslatedContent({
+            symptomsSummary: consultation!.symptomsSummary,
+            diagnosis: consultation!.aiDiagnosis as GenerateDiagnosisOutput,
+            prescription: consultation!.aiPrescription as GeneratePrescriptionOutput,
+        });
+        return;
+    }
+
+    startTranslateTransition(async () => {
+        const contentToTranslate = {
+            symptomsSummary: consultation.symptomsSummary,
+            diagnosisSummary: consultation.aiDiagnosis?.diagnosisSummary,
+            potentialConditions: consultation.aiDiagnosis?.potentialConditions,
+            recommendedNextSteps: consultation.aiDiagnosis?.recommendedNextSteps,
+            prescriptionNotes: consultation.aiPrescription?.notes,
+            medications: consultation.aiPrescription?.medications?.map(m => m.reason),
+        };
+
+        const result = await translateContent(contentToTranslate, language);
+        if (result.success && result.data) {
+            const translated = result.data;
+            const newDiagnosis = consultation.aiDiagnosis ? {
+                ...consultation.aiDiagnosis,
+                diagnosisSummary: translated.diagnosisSummary || consultation.aiDiagnosis.diagnosisSummary,
+                potentialConditions: translated.potentialConditions || consultation.aiDiagnosis.potentialConditions,
+                recommendedNextSteps: translated.recommendedNextSteps || consultation.aiDiagnosis.recommendedNextSteps,
+            } : undefined;
+
+            const newPrescription = consultation.aiPrescription ? {
+                ...consultation.aiPrescription,
+                notes: translated.prescriptionNotes || consultation.aiPrescription.notes,
+                medications: consultation.aiPrescription.medications.map((med, i) => ({
+                    ...med,
+                    reason: translated.medications?.[i] || med.reason,
+                })),
+            } : undefined;
+
+            setTranslatedContent({
+                symptomsSummary: translated.symptomsSummary || consultation.symptomsSummary,
+                diagnosis: newDiagnosis,
+                prescription: newPrescription,
+            });
+        } else {
+            // Handle error with a toast or message
+            console.error("Translation failed:", result.error);
+        }
+    });
+  }
+  
+  if (isLoading) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+            <Loader className="h-16 w-16 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Alert variant="destructive" className="max-w-lg">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{result.error}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  const consultation = result.data as IConsultation;
-  const diagnosis = consultation.aiDiagnosis as GenerateDiagnosisOutput | null;
+  if (!consultation) return null;
+
+
+  const diagnosis = translatedContent?.diagnosis;
+  const prescription = translatedContent?.prescription;
+  const symptomsSummary = translatedContent?.symptomsSummary;
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-4xl">
-        <header className="mb-8 flex items-center justify-between">
+        <header className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
                 <CareIqLogo className="h-10 w-10 text-primary" />
                 <h1 className="font-headline text-3xl font-bold text-foreground">
                     Consultation Summary
                 </h1>
             </div>
-            <div className="text-sm text-muted-foreground">
-                Consultation ID: {params.id}
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+                 <Select onValueChange={handleLanguageChange} defaultValue="en">
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="zu">Zulu</SelectItem>
+                    </SelectContent>
+                </Select>
+                <div className="text-sm text-muted-foreground whitespace-nowrap">
+                    ID: {params.id}
+                </div>
             </div>
         </header>
 
-        <Card className="shadow-lg">
+        <Card className="shadow-lg relative">
+             {isTranslating && (
+                <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+                    <Loader className="h-12 w-12 animate-spin text-primary"/>
+                </div>
+            )}
             <CardHeader>
                 <CardTitle className="font-headline text-2xl">Consultation Details</CardTitle>
                 <CardDescription className="flex items-center gap-2 pt-1">
@@ -70,7 +188,7 @@ async function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                     <div>
                         <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><FileText className="text-primary"/> Initial Symptoms Reported</h3>
                         <blockquote className="border-l-4 border-primary/50 pl-4 italic text-muted-foreground">
-                            "{consultation.symptomsSummary}"
+                            "{symptomsSummary}"
                         </blockquote>
                     </div>
 
@@ -103,10 +221,10 @@ async function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                         </div>
                     )}
 
-                    {consultation.aiPrescription && (
+                    {prescription && (
                          <div>
                             <h3 className="font-semibold text-lg flex items-center gap-2 my-2"><Pill className="text-primary"/> Prescription</h3>
-                            <PrescriptionCard prescription={consultation.aiPrescription} consultationId={consultation._id.toString()} />
+                            <PrescriptionCard prescription={prescription} consultationId={consultation._id.toString()} />
                         </div>
                     )}
                 </div>

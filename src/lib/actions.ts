@@ -7,6 +7,7 @@ import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
 import { analyzeVitals } from '@/ai/flows/analyze-vitals';
+import { translateText } from '@/ai/flows/translate-text';
 import { patientDetails } from './mock-data';
 import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
@@ -579,4 +580,56 @@ export async function analyzeVitalsAction(vitals: { heartRate: number; bloodOxyg
       return { success: false, error: 'Failed to analyze vitals.' };
     }
   }
-    
+
+
+type TranslatableKeys = 'symptomsSummary' | 'diagnosisSummary' | 'recommendedNextSteps' | 'prescriptionNotes';
+type TranslatableArrays = 'potentialConditions' | 'medications';
+type ContentToTranslate = {
+    [K in TranslatableKeys]?: string;
+} & {
+    [K in TranslatableArrays]?: string[];
+};
+
+export async function translateContent(content: ContentToTranslate, language: string) {
+    const session = await getSession();
+    if (!session) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    try {
+        const translations: Record<string, any> = {};
+
+        const translateAndStore = async (key: string, text: string | undefined) => {
+            if (text) {
+                const result = await translateText({ text, targetLanguage: language });
+                translations[key] = result.translatedText;
+            }
+        };
+
+        const translateAndStoreArray = async (key: string, texts: string[] | undefined) => {
+            if (texts && texts.length > 0) {
+                const translatedTexts = await Promise.all(
+                    texts.map(async (text) => {
+                        const result = await translateText({ text, targetLanguage: language });
+                        return result.translatedText;
+                    })
+                );
+                translations[key] = translatedTexts;
+            }
+        };
+
+        await Promise.all([
+            translateAndStore('symptomsSummary', content.symptomsSummary),
+            translateAndStore('diagnosisSummary', content.diagnosisSummary),
+            translateAndStore('recommendedNextSteps', content.recommendedNextSteps),
+            translateAndStore('prescriptionNotes', content.prescriptionNotes),
+            translateAndStoreArray('potentialConditions', content.potentialConditions),
+            translateAndStoreArray('medications', content.medications),
+        ]);
+
+        return { success: true, data: translations };
+    } catch (error) {
+        console.error('Error translating content:', error);
+        return { success: false, error: 'Failed to translate content.' };
+    }
+}

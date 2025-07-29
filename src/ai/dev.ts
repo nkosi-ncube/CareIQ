@@ -8,3 +8,4 @@ import '@/ai/flows/transcribe-audio.ts';
 import '@/ai/flows/generate-diagnosis.ts';
 import '@/ai/flows/generate-prescription.ts';
 import '@/ai/flows/analyze-vitals.ts';
+import '@/ai/flows/translate-text.ts';
