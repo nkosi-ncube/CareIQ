@@ -8,10 +8,12 @@ if (!MONGODB_URI) {
   );
 }
 
-let cached = global.mongoose;
+// In development mode, use a global variable so that the value
+// is preserved across module reloads caused by HMR (Hot Module Replacement).
+let cached = (global as any).mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
 async function dbConnect() {
@@ -25,4 +27,11 @@ async function dbConnect() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-      return mongoose
+      return mongoose;
+    });
+  }
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+export default dbConnect;

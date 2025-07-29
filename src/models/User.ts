@@ -1,5 +1,5 @@
-import mongoose, { Schema } from 'mongoose';
-import type { Document, Model } from 'mongoose';
+import mongoose, { Schema, Model } from 'mongoose';
+import type { Document } from 'mongoose';
 
 const SouthAfricanMedicalAids = [
     "Discovery Health", "Bonitas", "Momentum Health", "Fedhealth", 
@@ -48,4 +48,6 @@ const userSchema = new Schema<IUser>({
   }
 }, { timestamps: true });
 
-const User: Model<
+const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+
+export default User;

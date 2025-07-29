@@ -59,4 +59,8 @@ export default function AuthButton({ user }: { user: User | null }) {
         <Link href="/login">Login</Link>
       </Button>
       <Button asChild>
-        <Link
+        <Link href="/register">Sign Up</Link>
+      </Button>
+    </div>
+  );
+}
