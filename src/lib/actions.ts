@@ -5,13 +5,16 @@ import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questio
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { patientDetails } from './mock-data';
-import type { Consultation } from './types';
+import type { Consultation, UserSession } from './types';
 import dbConnect from './db';
 import User, { IUser } from '@/models/User';
+import ConsultationModel from '@/models/Consultation';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 const JWT_EXPIRES_IN = '1d';
@@ -158,7 +161,7 @@ export async function loginUser(data: z.infer<typeof loginSchema>) {
             return { success: false, error: 'Invalid email or password.' };
         }
 
-        const payload = {
+        const payload: UserSession = {
             id: user._id.toString(),
             name: user.name,
             email: user.email,
@@ -187,7 +190,7 @@ export async function getSession() {
   
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      return decoded as { id: string; name: string; email: string; role: 'patient' | 'hcp' };
+      return decoded as UserSession;
     } catch (error) {
       return null;
     }
@@ -215,12 +218,111 @@ export async function findAvailableHCPs(specialties: string[]) {
         const result = hcps.map(hcp => ({
             id: hcp._id.toString(),
             name: hcp.name,
-            specialty: hcp.specialty,
+            specialty: hcp.specialty!,
         }));
 
         return { success: true, data: result };
     } catch (error) {
         console.error('Error finding HCPs:', error);
         return { success: false, error: 'A server error occurred while searching for specialists.' };
+    }
+}
+
+export async function createConsultation(hcpId: string, symptoms: string, aiResult: any) {
+    const session = await getSession();
+    if (!session || session.role !== 'patient') {
+      return { success: false, error: 'You must be logged in as a patient to book a consultation.' };
+    }
+  
+    try {
+      await dbConnect();
+  
+      const newConsultation = new ConsultationModel({
+        patient: session.id,
+        hcp: hcpId,
+        status: 'waiting',
+        symptomsSummary: symptoms,
+        aiAnalysis: aiResult,
+      });
+  
+      await newConsultation.save();
+      revalidatePath('/hcp-dashboard'); // To update the HCP's queue
+      
+      return { success: true, data: { consultationId: newConsultation._id.toString() }};
+
+    } catch (error) {
+      console.error('Error creating consultation:', error);
+      return { success: false, error: 'A server error occurred while booking the consultation.' };
+    }
+}
+
+export async function getWaitingRoomData(consultationId: string) {
+    const session = await getSession();
+    if (!session) {
+        redirect('/login');
+    }
+
+    try {
+        await dbConnect();
+
+        const consultation = await ConsultationModel.findById(consultationId)
+            .populate('hcp', 'name specialty')
+            .populate('patient', 'name')
+            .lean();
+
+        if (!consultation) {
+            return { success: false, error: 'Consultation not found.' };
+        }
+        
+        // Ensure only the patient or the assigned HCP can view this page
+        if (session.id !== consultation.patient._id.toString() && session.id !== consultation.hcp._id.toString()) {
+             return { success: false, error: 'You are not authorized to view this consultation.' };
+        }
+
+        return { 
+            success: true, 
+            data: {
+                consultationId: consultation._id.toString(),
+                status: consultation.status,
+                hcp: {
+                    name: (consultation.hcp as any).name,
+                    specialty: (consultation.hcp as any).specialty,
+                },
+                patient: {
+                    name: (consultation.patient as any).name,
+                }
+            } 
+        };
+
+    } catch (error) {
+        console.error('Error fetching waiting room data:', error);
+        return { success: false, error: 'A server error occurred.' };
+    }
+}
+
+export async function getHcpDashboardData() {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    try {
+        await dbConnect();
+        const waitingPatients = await ConsultationModel.find({ hcp: session.id, status: 'waiting' })
+            .populate('patient', 'name age')
+            .sort({ createdAt: 1 }) // Oldest first
+            .lean();
+        
+        return { success: true, data: waitingPatients.map(p => ({
+            consultationId: p._id.toString(),
+            patientId: (p.patient as any)._id.toString(),
+            patientName: (p.patient as any).name,
+            patientAge: (p.patient as any).age,
+            symptoms: p.symptomsSummary,
+        })) };
+
+    } catch (error) {
+        console.error('Error fetching HCP dashboard data:', error);
+        return { success: false, error: 'Server error' };
     }
 }

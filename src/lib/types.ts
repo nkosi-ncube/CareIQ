@@ -27,7 +27,7 @@ export type HCP = {
     name: string;
     email?: string;
     practiceNumber?: string;
-    specialty?: string;
+    specialty: string;
 }
 
 export type UserSession = {
@@ -35,4 +35,16 @@ export type UserSession = {
     name: string;
     email: string;
     role: 'patient' | 'hcp';
+}
+
+export type WaitingRoomData = {
+    consultationId: string;
+    status: 'waiting' | 'active' | 'completed' | 'cancelled';
+    hcp: {
+        name: string;
+        specialty: string;
+    },
+    patient: {
+        name: string;
+    }
 }

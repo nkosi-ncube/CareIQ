@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Patient } from '@/lib/types';
-import { AlertTriangle, User } from 'lucide-react';
+import { AlertTriangle, User, Video } from 'lucide-react';
+import Link from 'next/link';
 
 export default function PatientCard({ patient }: { patient: Patient }) {
   const riskColor = {
@@ -50,7 +51,12 @@ export default function PatientCard({ patient }: { patient: Patient }) {
       </CardContent>
       <CardFooter className="flex gap-2">
         <Button className="flex-1">View Details</Button>
-        <Button variant="outline" className="flex-1">Start Consult</Button>
+        <Button variant="outline" className="flex-1" asChild>
+            <Link href="/consultation/live">
+                <Video className="mr-2 h-4 w-4"/>
+                Start Consult
+            </Link>
+        </Button>
       </CardFooter>
     </Card>
   );

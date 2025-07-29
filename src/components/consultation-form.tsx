@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -13,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { getAIMatch, getFollowUpQuestions, transcribeAudioAction, findAvailableHCPs } from '@/lib/actions';
+import { getAIMatch, getFollowUpQuestions, transcribeAudioAction, findAvailableHCPs, createConsultation } from '@/lib/actions';
 import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
@@ -28,6 +29,7 @@ const FormSchema = z.object({
 });
 
 export default function ConsultationForm() {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AnalyzeSymptomsOutput | null>(null);
   const [questions, setQuestions] = useState<GenerateFollowUpQuestionsOutput | null>(null);
@@ -36,6 +38,7 @@ export default function ConsultationForm() {
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle');
   const [availableHCPs, setAvailableHCPs] = useState<HCP[]>([]);
   const [isFindingHCPs, setIsFindingHCPs] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
@@ -150,13 +153,24 @@ export default function ConsultationForm() {
     });
   }
 
-  const handleBookConsultation = (hcp: HCP) => {
-    toast({
-        title: "Consultation Booked!",
-        description: `Your consultation with ${hcp.name} has been booked. You will be notified when it's ready.`,
-    });
-    // Here you would typically redirect to a waiting room page
-    // or update the UI state to show a waiting status.
+  const handleBookConsultation = async (hcp: HCP) => {
+    setIsBooking(true);
+    const response = await createConsultation(hcp.id, form.getValues('symptoms'), result);
+    setIsBooking(false);
+
+    if (response.success && response.data) {
+        toast({
+            title: "Consultation Booked!",
+            description: `You are now in the waiting room for ${hcp.name}.`,
+        });
+        router.push(`/consultation/${response.data.consultationId}/waiting`);
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Booking Failed',
+            description: response.error,
+        });
+    }
   }
 
   const UrgencyAlert = ({ result }: { result: AnalyzeSymptomsOutput }) => {
@@ -379,9 +393,9 @@ export default function ConsultationForm() {
                                             <p className="text-sm text-muted-foreground">{hcp.specialty}</p>
                                         </div>
                                     </div>
-                                    <Button onClick={() => handleBookConsultation(hcp)}>
-                                        <Video className="mr-2 h-4 w-4"/>
-                                        Book Now
+                                    <Button onClick={() => handleBookConsultation(hcp)} disabled={isBooking}>
+                                        {isBooking ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Video className="mr-2 h-4 w-4"/>}
+                                        {isBooking ? 'Booking...' : 'Book Now'}
                                     </Button>
                                 </div>
                             ))}
