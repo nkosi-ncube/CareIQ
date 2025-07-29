@@ -5,7 +5,7 @@ import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, Sparkles, Save, Pill, Check, Pencil } from "lucide-react";
-import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis, getAIPrescription } from '@/lib/actions';
+import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis, getAIPrescription, approvePrescription } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { WaitingRoomData } from '@/lib/types';
 import type { GenerateDiagnosisOutput } from '@/ai/flows/generate-diagnosis';
@@ -35,6 +35,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   
   const [isGeneratingPrescription, startPrescriptionTransition] = useTransition();
   const [aiPrescription, setAiPrescription] = useState<GeneratePrescriptionOutput | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
 
 
   useEffect(() => {
@@ -172,6 +173,25 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
         });
       }
     });
+  }
+
+  const handleApprovePrescription = async () => {
+    if (!aiPrescription) return;
+    setIsApproving(true);
+    const result = await approvePrescription(params.id, aiPrescription);
+    if(result.success) {
+        toast({
+            title: 'Prescription Approved',
+            description: 'The prescription has been saved.',
+        });
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Approval Failed',
+            description: result.error,
+        });
+    }
+    setIsApproving(false);
   }
   
   if (isLoading) {
@@ -379,8 +399,9 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                                 </div>
                             </CardContent>
                             <CardFooter className='flex gap-2'>
-                               <Button size="sm" variant="default">
-                                    <Check className="mr-2 h-4 w-4"/> Approve
+                               <Button size="sm" variant="default" onClick={handleApprovePrescription} disabled={isApproving}>
+                                    {isApproving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} 
+                                    Approve
                                </Button>
                                <Button size="sm" variant="outline">
                                     <Pencil className="mr-2 h-4 w-4"/> Edit

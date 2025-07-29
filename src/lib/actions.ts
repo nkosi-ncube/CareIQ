@@ -420,3 +420,27 @@ export async function getAIPrescription(diagnosis: any) {
         return { success: false, error: 'Failed to generate AI prescription suggestion.' };
     }
 }
+
+export async function approvePrescription(consultationId: string, prescription: any) {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    try {
+        await dbConnect();
+        const consultation = await ConsultationModel.findById(consultationId);
+        if (!consultation) {
+            return { success: false, error: 'Consultation not found.' };
+        }
+        if (consultation.hcp.toString() !== session.id) {
+            return { success: false, error: 'You are not authorized to update this consultation.' };
+        }
+        consultation.aiPrescription = prescription;
+        await consultation.save();
+        revalidatePath(`/consultation/${consultationId}/live`);
+        return { success: true };
+    } catch (error) {
+        console.error('Error approving prescription:', error);
+        return { success: false, error: 'Failed to save prescription.' };
+    }
+}
