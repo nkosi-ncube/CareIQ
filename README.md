@@ -13,15 +13,16 @@ This project is a functional prototype demonstrating the core "CareConsult" flow
 ### Key Implemented Features
 *   **User Authentication**: Separate registration and login flows for Patients and Healthcare Professionals (HCPs).
 *   **Role-Based Dashboards**:
-    *   **Patient Dashboard**: A central hub for patients to initiate consultations, view their care history, and see approved prescriptions.
-    *   **HCP Dashboard**: A portal for doctors to manage their patient queue and professional profile.
+    *   **Patient Dashboard**: A central hub for patients to initiate consultations, view their care history, see approved prescriptions, and download them as PDFs.
+    *   **HCP Dashboard**: A portal for doctors to manage their patient queue, professional profile, and view consultation history.
 *   **AI Symptom Analysis (`CareAssess`)**: Patients can describe their symptoms (via text or voice-to-text) and upload an optional photo. The AI analyzes this input to suggest relevant specialist types.
 *   **Intelligent HCP Matching & Booking**: After AI analysis, the system displays a list of registered HCPs. Patients can book an instant consultation.
 *   **Real-time Waiting Room (`CareWait`)**: After booking, the patient enters a waiting room. The HCP sees the patient appear in their "Patient Queue" in real-time.
 *   **Live Consultation (`CareLive`)**: When the HCP starts the meeting, both users are directed to a live consultation page with functional video and microphone controls. The HCP can end the call, which completes the consultation.
 *   **AI-Powered Diagnosis (`CareAdvise`)**: During the call, the HCP can write notes and use an AI assistant to generate a potential diagnosis based on the initial symptoms and live notes. This diagnosis can be saved to the consultation record.
 *   **AI-Assisted Prescriptions (`CareDocument`)**: Based on the AI diagnosis, the HCP can generate a suggested prescription. The HCP must review and approve this prescription, emphasizing the principle of human-in-the-loop.
-*   **Prescription Viewing**: Patients can view their approved prescriptions on their dashboard.
+*   **Prescription Viewing & Downloading**: Patients can view their approved prescriptions on their dashboard and download them as a PDF.
+*   **Consultation History**: Both patients and HCPs can view a history of their past completed consultations.
 
 ### Future Roadmap & Planned Features
 The current implementation lays the groundwork for the full vision outlined in the PRD. Key areas for future development include:
