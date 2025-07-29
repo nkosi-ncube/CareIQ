@@ -23,9 +23,11 @@ export type Patient = {
 };
 
 export type HCP = {
+    id: string;
     name: string;
-    email: string;
-    practiceNumber: string;
+    email?: string;
+    practiceNumber?: string;
+    specialty?: string;
 }
 
 export type UserSession = {

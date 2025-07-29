@@ -91,6 +91,7 @@ const registerSchema = z.object({
     password: z.string().min(8),
     role: z.enum(['patient', 'hcp']),
     practiceNumber: z.string().optional(),
+    specialty: z.string().optional(),
     paymentMethod: z.enum(['card', 'medicalAid']).optional(),
     medicalAidName: z.string().optional(),
     medicalAidMemberNumber: z.string().optional(),
@@ -116,6 +117,7 @@ export async function registerUser(data: z.infer<typeof registerSchema>) {
 
         if (data.role === 'hcp') {
             userData.practiceNumber = data.practiceNumber;
+            userData.specialty = data.specialty;
         } else {
             userData.paymentMethod = data.paymentMethod;
             if (data.paymentMethod === 'medicalAid') {
@@ -157,7 +159,7 @@ export async function loginUser(data: z.infer<typeof loginSchema>) {
         }
 
         const payload = {
-            id: user._id,
+            id: user._id.toString(),
             name: user.name,
             email: user.email,
             role: user.role,
@@ -193,4 +195,32 @@ export async function getSession() {
 
 export async function logoutUser() {
     cookies().delete('token');
+}
+
+export async function findAvailableHCPs(specialties: string[]) {
+    try {
+        await dbConnect();
+
+        // For now, we assume all HCPs are "available". 
+        // In a real app, this would check a status field.
+        const hcps = await User.find({
+            role: 'hcp',
+            specialty: { $in: specialties }
+        }).lean();
+        
+        if (!hcps || hcps.length === 0) {
+            return { success: false, error: 'No specialists found for the given criteria.' };
+        }
+        
+        const result = hcps.map(hcp => ({
+            id: hcp._id.toString(),
+            name: hcp.name,
+            specialty: hcp.specialty,
+        }));
+
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error finding HCPs:', error);
+        return { success: false, error: 'A server error occurred while searching for specialists.' };
+    }
 }

@@ -6,6 +6,11 @@ const SouthAfricanMedicalAids = [
     "Medihelp", "Bestmed", "Profmed", "Keyhealth", "Sizwe-Hosmed", "Netcare Medical Scheme"
 ];
 
+const hcpSpecialties = [
+    "Cardiology", "Dermatology", "Gastroenterology", "Neurology", 
+    "Oncology", "Orthopedics", "Pediatrics", "Psychiatry", "Urology", "General Practice"
+];
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -19,6 +24,7 @@ export interface IUser extends Document {
   };
   // HCP specific fields
   practiceNumber?: string;
+  specialty?: string;
 }
 
 const userSchema = new Schema<IUser>({
@@ -29,6 +35,11 @@ const userSchema = new Schema<IUser>({
   practiceNumber: { 
     type: String, 
     required: function(this: IUser) { return this.role === 'hcp'; } 
+  },
+  specialty: {
+    type: String,
+    enum: hcpSpecialties,
+    required: function(this: IUser) { return this.role === 'hcp'; }
   },
   paymentMethod: { 
     type: String, 

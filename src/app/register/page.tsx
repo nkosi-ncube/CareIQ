@@ -20,12 +20,18 @@ const southAfricanMedicalAids = [
   "Medihelp", "Bestmed", "Profmed", "Keyhealth", "Sizwe-Hosmed", "Netcare Medical Scheme"
 ];
 
+const hcpSpecialties = [
+    "Cardiology", "Dermatology", "Gastroenterology", "Neurology", 
+    "Oncology", "Orthopedics", "Pediatrics", "Psychiatry", "Urology", "General Practice"
+];
+
 const registerSchema = z.object({
     name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
     email: z.string().email({ message: 'Invalid email address.' }),
     password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
     role: z.enum(['patient', 'hcp']),
     practiceNumber: z.string().optional(),
+    specialty: z.string().optional(),
     paymentMethod: z.enum(['card', 'medicalAid']).optional(),
     medicalAidName: z.string().optional(),
     medicalAidMemberNumber: z.string().optional(),
@@ -35,6 +41,13 @@ const registerSchema = z.object({
             code: z.ZodIssueCode.custom,
             path: ['practiceNumber'],
             message: 'Practice number is required for HCPs.',
+        });
+    }
+    if (data.role === 'hcp' && !data.specialty) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['specialty'],
+            message: 'Specialty is required for HCPs.',
         });
     }
     if (data.role === 'patient' && !data.paymentMethod) {
@@ -154,17 +167,33 @@ export default function RegisterPage() {
               </div>
 
               {role === 'hcp' && (
-                <div className="space-y-2">
-                  <Label htmlFor="practiceNumber">Practice Number</Label>
-                  <Input id="practiceNumber" {...register('practiceNumber')} />
-                  {errors.practiceNumber && <p className="text-sm text-destructive">{errors.practiceNumber.message}</p>}
-                </div>
+                <>
+                    <div className="space-y-2">
+                        <Label htmlFor="practiceNumber">Practice Number</Label>
+                        <Input id="practiceNumber" {...register('practiceNumber')} />
+                        {errors.practiceNumber && <p className="text-sm text-destructive">{errors.practiceNumber.message}</p>}
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="specialty">Specialty</Label>
+                        <Select onValueChange={(value) => setValue('specialty', value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select your specialty" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {hcpSpecialties.map((specialty) => (
+                              <SelectItem key={specialty} value={specialty}>{specialty}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.specialty && <p className="text-sm text-destructive">{errors.specialty.message}</p>}
+                      </div>
+                </>
               )}
 
               {role === 'patient' && (
                 <>
                   <div className="space-y-2">
-                    <Label>Payment Method</Label>
+                    <Label>Payment Method for Online Consultation</Label>
                     <RadioGroup
                       className="flex gap-4"
                       onValueChange={(value: 'card' | 'medicalAid') => setValue('paymentMethod', value)}

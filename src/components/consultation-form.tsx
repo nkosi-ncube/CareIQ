@@ -8,18 +8,20 @@ import Image from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { getAIMatch, getFollowUpQuestions, transcribeAudioAction } from '@/lib/actions';
-import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader } from 'lucide-react';
+import { getAIMatch, getFollowUpQuestions, transcribeAudioAction, findAvailableHCPs } from '@/lib/actions';
+import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Input } from './ui/input';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import type { HCP } from '@/lib/types';
 
 const FormSchema = z.object({
   symptoms: z.string().min(20, { message: 'Please describe your symptoms in at least 20 characters.' }),
@@ -32,6 +34,8 @@ export default function ConsultationForm() {
   const [isFetchingQuestions, setIsFetchingQuestions] = useState(false);
   const [photo, setPhoto] = useState<{ file: File | null; dataUri: string | null }>({ file: null, dataUri: null });
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [availableHCPs, setAvailableHCPs] = useState<HCP[]>([]);
+  const [isFindingHCPs, setIsFindingHCPs] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
@@ -82,8 +86,7 @@ export default function ConsultationForm() {
   const stopRecording = () => {
     if (mediaRecorderRef.current && recordingStatus === 'recording') {
       mediaRecorderRef.current.stop();
-       // Stop all media tracks
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
   };
 
@@ -112,17 +115,30 @@ export default function ConsultationForm() {
     startTransition(async () => {
       setResult(null);
       setQuestions(null);
+      setAvailableHCPs([]);
       const response = await getAIMatch(data.symptoms, photo.dataUri);
 
       if (response.success && response.data) {
-        setResult(response.data as AnalyzeSymptomsOutput);
+        const analysisResult = response.data as AnalyzeSymptomsOutput;
+        setResult(analysisResult);
+
         setIsFetchingQuestions(true);
-        const questionsResponse = await getFollowUpQuestions(data.symptoms);
-        if(questionsResponse.success && questionsResponse.data) {
-            setQuestions(questionsResponse.data);
-        }
-        // Silently fail if questions fail, it's not critical path.
-        setIsFetchingQuestions(false);
+        getFollowUpQuestions(data.symptoms).then(questionsResponse => {
+            if(questionsResponse.success && questionsResponse.data) {
+                setQuestions(questionsResponse.data);
+            }
+            setIsFetchingQuestions(false);
+        });
+
+        setIsFindingHCPs(true);
+        findAvailableHCPs(analysisResult.suggestedProfessionals).then(hcpResponse => {
+            if(hcpResponse.success && hcpResponse.data) {
+                setAvailableHCPs(hcpResponse.data);
+            } else {
+                toast({ variant: 'default', title: 'Could not find HCPs', description: hcpResponse.error});
+            }
+            setIsFindingHCPs(false);
+        });
 
       } else {
         toast({
@@ -132,6 +148,15 @@ export default function ConsultationForm() {
         });
       }
     });
+  }
+
+  const handleBookConsultation = (hcp: HCP) => {
+    toast({
+        title: "Consultation Booked!",
+        description: `Your consultation with ${hcp.name} has been booked. You will be notified when it's ready.`,
+    });
+    // Here you would typically redirect to a waiting room page
+    // or update the UI state to show a waiting status.
   }
 
   const UrgencyAlert = ({ result }: { result: AnalyzeSymptomsOutput }) => {
@@ -171,81 +196,83 @@ export default function ConsultationForm() {
 
   return (
     <div className="space-y-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="symptoms"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={recordingStatus === 'recording' ? stopRecording : startRecording}
-                      disabled={recordingStatus === 'transcribing'}
-                      className="h-8 w-8"
-                    >
-                      {recordingStatus === 'idle' && <Mic className="h-4 w-4" />}
-                      {recordingStatus === 'recording' && <Square className="h-4 w-4 animate-pulse fill-red-500 text-red-500" />}
-                      {recordingStatus === 'transcribing' && <Loader className="h-4 w-4 animate-spin" />}
-                      <span className="sr-only">
-                        {recordingStatus === 'recording' ? 'Stop recording' : 'Record audio'}
-                      </span>
-                    </Button>
-                  </div>
-                  <FormControl>
-                    <Textarea
-                      placeholder="For the past week, I've have a persistent dry cough, a low-grade fever, and a headache... or record your audio."
-                      className="min-h-[120px] resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormItem>
-                <FormLabel className="font-headline text-lg">Upload a Photo (Optional)</FormLabel>
-                <FormControl>
-                    <Input type="file" accept="image/*" onChange={handleFileChange} />
-                </FormControl>
-                <FormDescription>
-                    If you have a visible symptom (e.g., a rash or swelling), you can upload a photo.
-                </FormDescription>
-             </FormItem>
-          </div>
-          <div className="space-y-2">
-            <FormLabel className="font-headline text-lg text-transparent md:block hidden">Preview</FormLabel>
-            <Card className={cn("flex items-center justify-center bg-background border-2 border-dashed h-full min-h-[120px]", !photo.dataUri && "py-10")}>
-                {photo.dataUri ? (
-                    <div className="relative w-full h-full max-h-60">
-                        <Image src={photo.dataUri} alt="Symptom photo" layout="fill" objectFit="contain" className="rounded-md" />
-                        <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={removePhoto}>
-                           <X className="h-4 w-4"/>
-                           <span className="sr-only">Remove photo</span>
+      {!result && (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-4">
+                <FormField
+                control={form.control}
+                name="symptoms"
+                render={({ field }) => (
+                    <FormItem>
+                    <div className="flex items-center justify-between">
+                        <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
+                        <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={recordingStatus === 'recording' ? stopRecording : startRecording}
+                        disabled={recordingStatus === 'transcribing'}
+                        className="h-8 w-8"
+                        >
+                        {recordingStatus === 'idle' && <Mic className="h-4 w-4" />}
+                        {recordingStatus === 'recording' && <Square className="h-4 w-4 animate-pulse fill-red-500 text-red-500" />}
+                        {recordingStatus === 'transcribing' && <Loader className="h-4 w-4 animate-spin" />}
+                        <span className="sr-only">
+                            {recordingStatus === 'recording' ? 'Stop recording' : 'Record audio'}
+                        </span>
                         </Button>
                     </div>
-                ): (
-                    <div className="text-center text-muted-foreground p-4">
-                        <Upload className="mx-auto h-12 w-12" />
-                        <p className="mt-2 text-sm">Image preview will appear here.</p>
-                    </div>
+                    <FormControl>
+                        <Textarea
+                        placeholder="For the past week, I've have a persistent dry cough, a low-grade fever, and a headache... or record your audio."
+                        className="min-h-[120px] resize-none"
+                        {...field}
+                        />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
                 )}
-            </Card>
-          </div>
+                />
+                <FormItem>
+                    <FormLabel className="font-headline text-lg">Upload a Photo (Optional)</FormLabel>
+                    <FormControl>
+                        <Input type="file" accept="image/*" onChange={handleFileChange} />
+                    </FormControl>
+                    <FormDescription>
+                        If you have a visible symptom (e.g., a rash or swelling), you can upload a photo.
+                    </FormDescription>
+                </FormItem>
+            </div>
+            <div className="space-y-2">
+                <FormLabel className="font-headline text-lg text-transparent md:block hidden">Preview</FormLabel>
+                <Card className={cn("flex items-center justify-center bg-background border-2 border-dashed h-full min-h-[120px]", !photo.dataUri && "py-10")}>
+                    {photo.dataUri ? (
+                        <div className="relative w-full h-full max-h-60">
+                            <Image src={photo.dataUri} alt="Symptom photo" layout="fill" objectFit="contain" className="rounded-md" />
+                            <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={removePhoto}>
+                            <X className="h-4 w-4"/>
+                            <span className="sr-only">Remove photo</span>
+                            </Button>
+                        </div>
+                    ): (
+                        <div className="text-center text-muted-foreground p-4">
+                            <Upload className="mx-auto h-12 w-12" />
+                            <p className="mt-2 text-sm">Image preview will appear here.</p>
+                        </div>
+                    )}
+                </Card>
+            </div>
 
-          <div className="md:col-span-2">
-            <Button type="submit" disabled={isPending || recordingStatus !== 'idle'} className="w-full sm:w-auto">
-                {isPending ? 'Analyzing...' : 'Find a Specialist'}
-                {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
-            </Button>
-          </div>
-        </form>
-      </Form>
+            <div className="md:col-span-2">
+                <Button type="submit" disabled={isPending || recordingStatus !== 'idle'} className="w-full sm:w-auto">
+                    {isPending ? 'Analyzing...' : 'Find a Specialist'}
+                    {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
+                </Button>
+            </div>
+            </form>
+        </Form>
+      )}
 
       {isPending && !result && (
         <Card>
@@ -261,59 +288,117 @@ export default function ConsultationForm() {
       )}
 
       {result && (
-        <div className="grid gap-6 md:grid-cols-2">
-            <Card className="bg-primary/5 border-primary/20">
-            <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2">
-                <Stethoscope className="text-primary" />
-                Suggested Specialists
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                {result.suggestedProfessionals.map((prof) => (
-                    <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
-                    {prof}
-                    </Badge>
-                ))}
-                </div>
-                <div>
-                <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
-                    Confidence Level
-                </label>
-                <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
-                </div>
-                <UrgencyAlert result={result} />
-            </CardContent>
-            </Card>
+        <div className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+                <Card className="bg-primary/5 border-primary/20">
+                    <CardHeader>
+                        <CardTitle className="font-headline flex items-center gap-2">
+                        <Stethoscope className="text-primary" />
+                        AI Analysis Results
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-wrap gap-2">
+                        {result.suggestedProfessionals.map((prof) => (
+                            <Badge key={prof} variant="secondary" className="px-3 py-1 text-base font-medium">
+                            {prof}
+                            </Badge>
+                        ))}
+                        </div>
+                        <div>
+                        <label htmlFor="confidence" className="text-sm font-medium text-muted-foreground">
+                            Confidence Level
+                        </label>
+                        <Progress id="confidence" value={result.confidenceLevel * 100} className="mt-1 h-3" />
+                        </div>
+                        <UrgencyAlert result={result} />
+                    </CardContent>
+                </Card>
 
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline flex items-center gap-2">
+                            <HelpCircle className="text-primary"/>
+                            Follow-up Questions
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {isFetchingQuestions && (
+                            <div className="space-y-3">
+                                <Skeleton className="h-5 w-5/6 rounded-md" />
+                                <Skeleton className="h-5 w-full rounded-md" />
+                                <Skeleton className="h-5 w-4/6 rounded-md" />
+                            </div>
+                        )}
+                        {questions && (
+                            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+                                {questions.questions.map((q, i) => (
+                                    <li key={i}>{q}</li>
+                                ))}
+                            </ul>
+                        )}
+                        {!isFetchingQuestions && !questions && (
+                            <p className="text-sm text-muted-foreground">No follow-up questions generated.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+            
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline flex items-center gap-2">
-                        <HelpCircle className="text-primary"/>
-                        Follow-up Questions
-                    </CardTitle>
+                    <CardTitle className="font-headline">Connect with a Specialist</CardTitle>
+                    <CardDescription>Based on your symptoms, we suggest connecting with one of these specialists.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isFetchingQuestions && (
-                        <div className="space-y-3">
-                            <Skeleton className="h-5 w-5/6 rounded-md" />
-                            <Skeleton className="h-5 w-full rounded-md" />
-                            <Skeleton className="h-5 w-4/6 rounded-md" />
+                    {isFindingHCPs && (
+                        <div className="space-y-4">
+                            {[...Array(2)].map((_, i) => (
+                                <div key={i} className="flex items-center justify-between rounded-lg border p-4">
+                                    <div className="flex items-center gap-4">
+                                        <Skeleton className="h-12 w-12 rounded-full" />
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-5 w-32 rounded-md"/>
+                                            <Skeleton className="h-4 w-24 rounded-md"/>
+                                        </div>
+                                    </div>
+                                    <Skeleton className="h-10 w-28 rounded-md" />
+                                </div>
+                            ))}
                         </div>
                     )}
-                    {questions && (
-                        <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-                            {questions.questions.map((q, i) => (
-                                <li key={i}>{q}</li>
+                    {!isFindingHCPs && availableHCPs.length > 0 && (
+                        <div className="space-y-4">
+                            {availableHCPs.map(hcp => (
+                                <div key={hcp.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4">
+                                    <div className="flex items-center gap-4 mb-4 sm:mb-0">
+                                        <Avatar className="h-12 w-12">
+                                            <AvatarFallback>{hcp.name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-bold">{hcp.name}</p>
+                                            <p className="text-sm text-muted-foreground">{hcp.specialty}</p>
+                                        </div>
+                                    </div>
+                                    <Button onClick={() => handleBookConsultation(hcp)}>
+                                        <Video className="mr-2 h-4 w-4"/>
+                                        Book Now
+                                    </Button>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     )}
-                     {!isFetchingQuestions && !questions && (
-                        <p className="text-sm text-muted-foreground">No follow-up questions generated.</p>
+                     {!isFindingHCPs && availableHCPs.length === 0 && (
+                        <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>No Specialists Available</AlertTitle>
+                            <AlertDescription>
+                                We couldn't find any available specialists matching your needs at this time. Please try again later.
+                            </AlertDescription>
+                        </Alert>
                      )}
                 </CardContent>
             </Card>
+
         </div>
       )}
       
