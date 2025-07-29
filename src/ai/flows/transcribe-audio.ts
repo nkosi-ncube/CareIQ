@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {Readable} from 'stream';
+import {PassThrough, Readable} from 'stream';
 
 import ffmpeg from 'fluent-ffmpeg';
 // Correctly reference the path provided by the ffmpeg-static package
@@ -51,6 +51,16 @@ async function convertToMp3(inputBuffer: Buffer): Promise<Buffer> {
         inputStream.push(null); // End the stream
 
         const outputBuffers: Buffer[] = [];
+        const outputStream = new PassThrough();
+
+        outputStream.on('data', (chunk) => {
+            outputBuffers.push(chunk);
+        });
+        outputStream.on('end', () => {
+            resolve(Buffer.concat(outputBuffers));
+        });
+        outputStream.on('error', reject);
+
 
         ffmpeg(inputStream)
             .format('mp3')
@@ -58,13 +68,7 @@ async function convertToMp3(inputBuffer: Buffer): Promise<Buffer> {
                 console.error('FFmpeg error:', err);
                 reject(err);
             })
-            .on('end', () => {
-                resolve(Buffer.concat(outputBuffers));
-            })
-            .pipe() // Pipe to stream
-            .on('data', (chunk) => {
-                outputBuffers.push(chunk);
-            });
+            .pipe(outputStream);
     });
 }
 
