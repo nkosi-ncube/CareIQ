@@ -25,8 +25,9 @@ export type TranslateTextOutput = z.infer<typeof TranslateTextOutputSchema>;
 export async function translateText(input: TranslateTextInput): Promise<TranslateTextOutput> {
   const { text, targetLanguage, sourceLanguage } = input;
   
-  if (!process.env.LELAPA_API_KEY) {
-    throw new Error('LELAPA_API_KEY environment variable is not set.');
+  console.log('LELAPA_API env var:', process.env.LELAPA_API ? 'loaded' : 'not found');
+  if (!process.env.LELAPA_API) {
+    throw new Error('LELAPA_API environment variable is not set.');
   }
 
   // Do not call the API for empty strings
@@ -39,7 +40,7 @@ export async function translateText(input: TranslateTextInput): Promise<Translat
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CLIENT-TOKEN': process.env.LELAPA_API_KEY,
+        'X-CLIENT-TOKEN': process.env.LELAPA_API,
       },
       body: JSON.stringify({
         input_text: text,
@@ -48,13 +49,13 @@ export async function translateText(input: TranslateTextInput): Promise<Translat
       }),
     });
 
-    if (!response.ok) {
-        const errorBody = await response.json();
-        console.error("Lelapa API Error:", errorBody);
-        throw new Error(`Lelapa API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
-    }
-
     const result = await response.json();
+    console.log('Lelapa API Response:', JSON.stringify(result, null, 2));
+
+    if (!response.ok) {
+        console.error("Lelapa API Error:", result);
+        throw new Error(`Lelapa API request failed with status ${response.status}: ${result.detail || 'Unknown error'}`);
+    }
     
     // The API returns the translated text in an array, inside the `output_text` field.
     const translatedText = result?.output_text?.[0] || '';
