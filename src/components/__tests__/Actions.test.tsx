@@ -6,7 +6,7 @@ import dbConnect from '@/lib/db';
 import User from '@/models/User';
 import DiagnosticTest from '@/models/DiagnosticTest';
 import { createDiagnosticTest, getDiagnosticTests, updateDiagnosticTest, deleteDiagnosticTest } from '@/lib/actions';
-import * as nextAuth from '@/lib/actions'; // to mock getSession
+import * as actions from '@/lib/actions';
 
 // Mock getSession
 jest.mock('@/lib/actions', () => {
@@ -17,7 +17,7 @@ jest.mock('@/lib/actions', () => {
   };
 });
 
-const mockedGetSession = nextAuth.getSession as jest.Mock;
+const mockedGetSession = actions.getSession as jest.Mock;
 
 describe('DiagnosticTest CRUD Actions', () => {
   let connection: any;
