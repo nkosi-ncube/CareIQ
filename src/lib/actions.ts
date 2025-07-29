@@ -275,7 +275,7 @@ export async function getWaitingRoomData(consultationId: string) {
         }
         
         // Ensure only the patient or the assigned HCP can view this page
-        if (session.id !== consultation.patient._id.toString() && session.id !== consultation.hcp._id.toString()) {
+        if (session.id !== (consultation.patient as any)._id.toString() && session.id !== (consultation.hcp as any)._id.toString()) {
              return { success: false, error: 'You are not authorized to view this consultation.' };
         }
 
@@ -313,16 +313,50 @@ export async function getHcpDashboardData() {
             .sort({ createdAt: 1 }) // Oldest first
             .lean();
         
-        return { success: true, data: waitingPatients.map(p => ({
+        const plainPatients = waitingPatients.map(p => ({
             consultationId: p._id.toString(),
             patientId: (p.patient as any)._id.toString(),
             patientName: (p.patient as any).name,
             patientAge: (p.patient as any).age,
             symptoms: p.symptomsSummary,
-        })) };
+        }));
+        
+        return { success: true, data: plainPatients };
 
     } catch (error) {
         console.error('Error fetching HCP dashboard data:', error);
         return { success: false, error: 'Server error' };
     }
 }
+
+export async function updateConsultationStatus(consultationId: string, status: 'active' | 'completed' | 'cancelled') {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+      return { success: false, error: 'Only the assigned HCP can update the consultation status.' };
+    }
+  
+    try {
+      await dbConnect();
+  
+      const consultation = await ConsultationModel.findById(consultationId);
+  
+      if (!consultation) {
+        return { success: false, error: 'Consultation not found.' };
+      }
+  
+      if (consultation.hcp.toString() !== session.id) {
+        return { success: false, error: 'You are not authorized to update this consultation.' };
+      }
+  
+      consultation.status = status;
+      await consultation.save();
+      
+      // Revalidate the waiting room page for the patient
+      revalidatePath(`/consultation/${consultationId}/waiting`);
+  
+      return { success: true, data: { status: consultation.status } };
+    } catch (error) {
+      console.error('Error updating consultation status:', error);
+      return { success: false, error: 'A server error occurred while updating the consultation.' };
+    }
+  }

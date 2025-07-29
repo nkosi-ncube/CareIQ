@@ -1,7 +1,7 @@
 'use client';
 import { CareIqLogo } from "@/components/icons";
 import AuthButton from "@/components/auth-button";
-import type { UserSession } from "@/lib/types";
+import type { UserSession, WaitingPatient } from "@/lib/types";
 import { Input } from "./ui/input";
 import { Search, User, Clock, Stethoscope, Video, Loader } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -9,23 +9,19 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import Link from "next/link";
-import { getHcpDashboardData } from "@/lib/actions";
+import { getHcpDashboardData, updateConsultationStatus } from "@/lib/actions";
 import { useEffect, useState, useTransition } from "react";
 import { Skeleton } from "./ui/skeleton";
-
-
-interface WaitingPatient {
-    consultationId: string;
-    patientId: string;
-    patientName: string;
-    patientAge: number;
-    symptoms: string;
-}
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 export default function HcpDashboard({ user }: { user: UserSession }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [data, setData] = useState<WaitingPatient[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isStartingConsultation, setIsStartingConsultation] = useState<string | null>(null);
 
   useEffect(() => {
     startTransition(async () => {
@@ -37,6 +33,18 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
         }
     });
   }, []);
+
+  const handleStartConsultation = async (consultationId: string) => {
+    setIsStartingConsultation(consultationId);
+    const result = await updateConsultationStatus(consultationId, 'active');
+    setIsStartingConsultation(null);
+    if(result.success) {
+        toast({ title: "Success", description: "Consultation started. Redirecting..."});
+        router.push(`/consultation/${consultationId}/live`);
+    } else {
+        toast({ variant: "destructive", title: "Error", description: result.error});
+    }
+  }
 
 
   return (
@@ -115,11 +123,13 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                                             </p>
                                         </div>
                                     </div>
-                                    <Button asChild>
-                                        <Link href={`/consultation/${patient.consultationId}/live`}>
+                                    <Button onClick={() => handleStartConsultation(patient.consultationId)} disabled={isStartingConsultation === patient.consultationId}>
+                                        {isStartingConsultation === patient.consultationId ? (
+                                            <Loader className="mr-2 h-4 w-4 animate-spin"/>
+                                        ) : (
                                             <Video className="mr-2 h-4 w-4"/>
-                                            Start Consultation
-                                        </Link>
+                                        )}
+                                        {isStartingConsultation === patient.consultationId ? 'Starting...' : 'Start Consultation'}
                                     </Button>
                                 </div>
                             ))

@@ -48,3 +48,11 @@ export type WaitingRoomData = {
         name: string;
     }
 }
+
+export interface WaitingPatient {
+    consultationId: string;
+    patientId: string;
+    patientName: string;
+    patientAge: number;
+    symptoms: string;
+}

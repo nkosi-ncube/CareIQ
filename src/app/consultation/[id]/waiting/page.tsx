@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getWaitingRoomData } from '@/lib/actions';
+import { getWaitingRoomData, updateConsultationStatus } from '@/lib/actions';
 import type { WaitingRoomData } from '@/lib/types';
 import { CareIqLogo } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ export default function WaitingRoomPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       const result = await getWaitingRoomData(params.id);
       if (result.success) {
         setData(result.data as WaitingRoomData);
@@ -29,22 +30,21 @@ export default function WaitingRoomPage({ params }: { params: { id: string } }) 
     fetchData();
   }, [params.id]);
   
-  // TODO: Implement real-time status check with polling or websockets
-  // For now, we will simulate the HCP joining after a delay
+  // Poll for status changes
   useEffect(() => {
-      if (data?.status === 'active') {
-          router.push(`/consultation/${params.id}/live`);
-      }
-      // This is a temporary simulation
-      const timer = setTimeout(() => {
-        if(data && data.status === 'waiting') {
-            setData({...data, status: 'active'});
+    if (data?.status === 'waiting') {
+      const interval = setInterval(async () => {
+        const result = await getWaitingRoomData(params.id);
+        if (result.success && result.data?.status === 'active') {
+          setData(result.data);
+          clearInterval(interval);
         }
-      }, 10000); // Simulate HCP joining after 10 seconds
+      }, 5000); // Poll every 5 seconds
 
-      return () => clearTimeout(timer);
+      return () => clearInterval(interval);
+    }
+  }, [data?.status, params.id]);
 
-  }, [data, params.id, router]);
 
   if (isLoading) {
     return (
@@ -107,7 +107,7 @@ export default function WaitingRoomPage({ params }: { params: { id: string } }) 
             )}
              {data.status === 'active' && (
                 <div className="flex flex-col items-center justify-center gap-3 text-lg text-green-600">
-                    <p>Connecting you to the consultation...</p>
+                    <p>Your consultation is ready!</p>
                     <Button onClick={() => router.push(`/consultation/${params.id}/live`)}>
                         <Video className="mr-2"/>
                         Join Now
