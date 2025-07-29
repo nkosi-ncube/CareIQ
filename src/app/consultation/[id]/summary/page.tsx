@@ -49,8 +49,9 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
     fetchSummary();
   }, [params.id]);
 
-  const handleLanguageChange = async (language: string) => {
+  const handleLanguageChange = (language: string) => {
     if (!consultation || language === 'en') {
+        // Reset to original content if English is selected
         setTranslatedContent({
             symptomsSummary: consultation!.symptomsSummary,
             diagnosis: consultation!.aiDiagnosis as GenerateDiagnosisOutput,
@@ -66,10 +67,11 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
             potentialConditions: consultation.aiDiagnosis?.potentialConditions,
             recommendedNextSteps: consultation.aiDiagnosis?.recommendedNextSteps,
             prescriptionNotes: consultation.aiPrescription?.notes,
-            medications: consultation.aiPrescription?.medications?.map(m => m.reason),
+            medications: consultation.aiPrescription?.medications,
         };
 
         const result = await translateContent(contentToTranslate, language);
+
         if (result.success && result.data) {
             const translated = result.data;
             const newDiagnosis = consultation.aiDiagnosis ? {
@@ -82,16 +84,13 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
             const newPrescription = consultation.aiPrescription ? {
                 ...consultation.aiPrescription,
                 notes: translated.prescriptionNotes || consultation.aiPrescription.notes,
-                medications: consultation.aiPrescription.medications.map((med, i) => ({
-                    ...med,
-                    reason: translated.medications?.[i] || med.reason,
-                })),
+                medications: translated.medications || consultation.aiPrescription.medications,
             } : undefined;
 
             setTranslatedContent({
                 symptomsSummary: translated.symptomsSummary || consultation.symptomsSummary,
-                diagnosis: newDiagnosis,
-                prescription: newPrescription,
+                diagnosis: newDiagnosis as GenerateDiagnosisOutput,
+                prescription: newPrescription as GeneratePrescriptionOutput,
             });
         } else {
             // Handle error with a toast or message

@@ -582,12 +582,20 @@ export async function getConsultationSummary(consultationId: string) {
     }
 }
 
-type TranslatableKeys = 'symptomsSummary' | 'diagnosisSummary' | 'recommendedNextSteps' | 'prescriptionNotes';
-type TranslatableArrays = 'potentialConditions' | 'medications';
+type Medication = {
+    name: string;
+    dosage: string;
+    frequency: string;
+    reason: string;
+};
+
 type ContentToTranslate = {
-    [K in TranslatableKeys]?: string;
-} & {
-    [K in TranslatableArrays]?: string[];
+    symptomsSummary?: string;
+    diagnosisSummary?: string;
+    potentialConditions?: string[];
+    recommendedNextSteps?: string;
+    prescriptionNotes?: string;
+    medications?: Medication[];
 };
 
 export async function translateContent(content: ContentToTranslate, language: string) {
@@ -599,33 +607,42 @@ export async function translateContent(content: ContentToTranslate, language: st
     try {
         const translations: Record<string, any> = {};
 
-        const translateAndStore = async (key: string, text: string | undefined) => {
-            if (text) {
-                const result = await translateText({ text, targetLanguage: language });
-                translations[key] = result.translatedText;
-            }
+        const translate = async (text: string) => {
+            const result = await translateText({ text, targetLanguage: language });
+            return result.translatedText;
         };
 
-        const translateAndStoreArray = async (key: string, texts: string[] | undefined) => {
-            if (texts && texts.length > 0) {
-                const translatedTexts = await Promise.all(
-                    texts.map(async (text) => {
-                        const result = await translateText({ text, targetLanguage: language });
-                        return result.translatedText;
-                    })
+        const translationPromises: Promise<any>[] = [];
+
+        for (const key in content) {
+            const value = content[key as keyof ContentToTranslate];
+            if (typeof value === 'string') {
+                translationPromises.push(
+                    translate(value).then(t => { translations[key] = t; })
                 );
-                translations[key] = translatedTexts;
+            } else if (Array.isArray(value)) {
+                if (key === 'medications') {
+                     translationPromises.push(
+                        Promise.all(
+                            (value as Medication[]).map(async (med) => ({
+                                name: await translate(med.name),
+                                dosage: await translate(med.dosage),
+                                frequency: await translate(med.frequency),
+                                reason: await translate(med.reason),
+                            }))
+                        ).then(t => { translations[key] = t; })
+                    );
+                } else {
+                     translationPromises.push(
+                        Promise.all(
+                            (value as string[]).map(text => translate(text))
+                        ).then(t => { translations[key] = t; })
+                    );
+                }
             }
-        };
-
-        await Promise.all([
-            translateAndStore('symptomsSummary', content.symptomsSummary),
-            translateAndStore('diagnosisSummary', content.diagnosisSummary),
-            translateAndStore('recommendedNextSteps', content.recommendedNextSteps),
-            translateAndStore('prescriptionNotes', content.prescriptionNotes),
-            translateAndStoreArray('potentialConditions', content.potentialConditions),
-            translateAndStoreArray('medications', content.medications),
-        ]);
+        }
+        
+        await Promise.all(translationPromises);
 
         return { success: true, data: translations };
     } catch (error) {
