@@ -2,7 +2,7 @@ import { getSession } from "@/lib/actions";
 import PatientDashboard from "@/components/patient-dashboard";
 import HcpDashboard from "@/components/hcp-dashboard";
 
-//hh
+//h
 export default async function Home() {
   const session = await getSession();
 
