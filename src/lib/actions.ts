@@ -38,9 +38,9 @@ export async function getAIMatch(symptoms: string, photoDataUri?: string | null,
       followUpAnswers: followUpAnswers || undefined,
     });
     return { success: true, data: result };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error analyzing symptoms:', error);
-    return { success: false, error: 'Failed to analyze symptoms due to a server error. Please try again.' };
+    return { success: false, error: error.message || 'Failed to analyze symptoms due to a server error. Please try again.' };
   }
 }
 
