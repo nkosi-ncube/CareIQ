@@ -1,3 +1,4 @@
+
 # CareIQ Lite: Intelligent Care, Personalised Health
 
 CareIQ is an AI-powered health consultation assistant designed to revolutionize healthcare delivery. It provides intelligent, personalized health experiences by leveraging AI agents, real-time data, and predictive analytics.
@@ -23,6 +24,8 @@ This project is a functional prototype demonstrating the core "CareConsult" flow
 *   **AI-Assisted Prescriptions (`CareDocument`)**: Based on the AI diagnosis, the HCP can generate a suggested prescription. The HCP must review and approve this prescription, emphasizing the principle of human-in-the-loop.
 *   **Prescription Viewing & Downloading**: Patients can view their approved prescriptions on their dashboard and download them as a PDF.
 *   **Consultation History**: Both patients and HCPs can view a history of their past completed consultations.
+*   **Health Check Endpoint**: A `/api/health` endpoint to verify database connectivity for monitoring purposes.
+*   **Unit Testing**: The project is set up with Jest and React Testing Library for unit testing.
 
 ### Future Roadmap & Planned Features
 The current implementation lays the groundwork for the full vision outlined in the PRD. Key areas for future development include:
@@ -83,6 +86,20 @@ This project uses Genkit for its AI capabilities, which runs as a separate proce
 
 3.  Open your browser and navigate to `http://localhost:9002` to see the application in action.
 
+### Running Tests
+
+Unit tests are written using Jest and React Testing Library. To run the test suite, use the following command:
+
+```sh
+npm run test
+```
+
+### Health Check
+
+The application provides a health-check endpoint to verify database connectivity. You can access it at:
+
+`http://localhost:9002/api/health`
+
 ## Technology Stack
 
 -   **Framework**: [Next.js](https://nextjs.org/) (App Router)
@@ -90,5 +107,6 @@ This project uses Genkit for its AI capabilities, which runs as a separate proce
 -   **UI**: [React](https://react.dev/)
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 -   **UI Components**: [ShadCN UI](https://ui.shadcn.com/)
+-   **Testing**: [Jest](https://jestjs.io/), [React Testing Library](https://testing-library.com/)
 -   **Database**: [MongoDB](https://www.mongodb.com/)
 -   **AI/ML**: [Google Genkit](https://firebase.google.com/docs/genkit)
