@@ -22,6 +22,7 @@ type TranslatableContent = {
 
 
 function ConsultationSummaryPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [consultation, setConsultation] = useState<IConsultation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +33,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchSummary = async () => {
         setIsLoading(true);
-        const result = await getConsultationSummary(params.id);
+        const result = await getConsultationSummary(id);
         if (result.success) {
             const data = result.data as IConsultation;
             setConsultation(data);
@@ -47,7 +48,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
         setIsLoading(false);
     }
     fetchSummary();
-  }, [params.id]);
+  }, [id]);
 
   const handleLanguageChange = (language: string) => {
     if (!consultation || language === 'eng_Latn') {
@@ -167,7 +168,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                     </SelectContent>
                 </Select>
                 <div className="text-sm text-muted-foreground whitespace-nowrap">
-                    ID: {params.id}
+                    ID: {id}
                 </div>
             </div>
         </header>
