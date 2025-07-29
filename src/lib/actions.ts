@@ -3,6 +3,7 @@
 
 import { analyzeSymptomsForConsultation } from '@/ai/flows/analyze-symptoms';
 import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questions';
+import type { GenerateFollowUpQuestionsInput } from '@/ai/flows/generate-follow-up-questions';
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
@@ -58,14 +59,16 @@ export async function getFollowUpQuestions(symptoms: string) {
             return { success: false, error: 'User not found' };
         }
 
-      const result = await generateFollowUpQuestions({
+      const input: GenerateFollowUpQuestionsInput = {
         symptomsDescription: symptoms,
         patientDetails: {
             name: user.name,
             age: user.age || 30, // Use a default if age is not set
             knownConditions: [], // Placeholder
         },
-      });
+      };
+
+      const result = await generateFollowUpQuestions(input);
       return { success: true, data: result };
     }
     catch (error)
@@ -208,7 +211,7 @@ export async function loginUser(data: z.infer<typeof loginSchema>) {
     }
 }
 
-export async function getSession() {
+export async function getSession(): Promise<UserSession | null> {
     const token = cookies().get('token')?.value;
     if (!token) return null;
   

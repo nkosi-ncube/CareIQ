@@ -10,8 +10,21 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { GenerateFollowUpQuestionsInputSchema } from '@/lib/schemas';
-import type { GenerateFollowUpQuestionsInput } from '@/lib/types';
+
+const patientDetailsSchema = z.object({
+    name: z.string(),
+    age: z.number(),
+    knownConditions: z.array(z.string()),
+});
+
+const GenerateFollowUpQuestionsInputSchema = z.object({
+    symptomsDescription: z
+      .string()
+      .describe('A detailed description of the user\'s symptoms.'),
+    patientDetails: patientDetailsSchema.describe("The patient's basic details and known conditions."),
+  });
+export type GenerateFollowUpQuestionsInput = z.infer<typeof GenerateFollowUpQuestionsInputSchema>;
+
 
 const GenerateFollowUpQuestionsOutputSchema = z.object({
   questions: z

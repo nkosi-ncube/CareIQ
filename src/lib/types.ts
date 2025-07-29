@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GenerateFollowUpQuestionsInputSchema } from './schemas';
+import type { GenerateFollowUpQuestionsInput } from '@/ai/flows/generate-follow-up-questions';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 
 export type Consultation = {
@@ -11,7 +11,8 @@ export type Consultation = {
   diagnosis: string;
 };
 
-export type GenerateFollowUpQuestionsInput = z.infer<typeof GenerateFollowUpQuestionsInputSchema>;
+// Re-exporting for use in client components
+export type { GenerateFollowUpQuestionsInput };
 
 export type Patient = {
     id: string;
