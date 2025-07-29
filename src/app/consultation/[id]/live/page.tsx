@@ -1,12 +1,38 @@
 'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader } from "lucide-react";
+import { updateConsultationStatus } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
 
-// This is a placeholder for the live consultation page.
-// A full WebRTC implementation is required for video/audio.
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isEndingCall, setIsEndingCall] = useState(false);
+
+  const handleEndCall = async () => {
+    setIsEndingCall(true);
+    const result = await updateConsultationStatus(params.id, 'completed');
+    if (result.success) {
+      toast({
+        title: "Consultation Ended",
+        description: "The consultation has been marked as completed.",
+      });
+      router.push('/');
+      router.refresh();
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: result.error,
+      });
+      setIsEndingCall(false);
+    }
+  };
+
   return (
     <div className="flex h-screen w-full flex-col bg-background">
       <header className="flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 sm:px-6">
@@ -46,8 +72,8 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                 <Button variant="secondary" size="lg" className="rounded-full h-16 w-16">
                     <Video className="h-8 w-8"/>
                 </Button>
-                 <Button variant="destructive" size="lg" className="rounded-full h-16 w-16">
-                    <PhoneOff className="h-8 w-8"/>
+                 <Button variant="destructive" size="lg" className="rounded-full h-16 w-16" onClick={handleEndCall} disabled={isEndingCall}>
+                    {isEndingCall ? <Loader className="h-8 w-8 animate-spin" /> : <PhoneOff className="h-8 w-8"/>}
                 </Button>
             </CardContent>
           </Card>

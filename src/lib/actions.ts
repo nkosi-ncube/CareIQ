@@ -351,8 +351,9 @@ export async function updateConsultationStatus(consultationId: string, status: '
       consultation.status = status;
       await consultation.save();
       
-      // Revalidate the waiting room page for the patient
+      // Revalidate the waiting room page for the patient and the HCP dashboard
       revalidatePath(`/consultation/${consultationId}/waiting`);
+      revalidatePath(`/`); // For HCP dashboard
   
       return { success: true, data: { status: consultation.status } };
     } catch (error) {
