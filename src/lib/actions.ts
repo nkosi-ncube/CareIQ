@@ -3,6 +3,7 @@
 import { analyzeSymptomsForConsultation } from '@/ai/flows/analyze-symptoms';
 import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questions';
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
+import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { patientDetails } from './mock-data';
 import type { Consultation } from './types';
 
@@ -58,4 +59,17 @@ export async function getAISummary(consultations: Consultation[]) {
     console.error('Error summarizing history:', error);
     return { success: false, error: 'Failed to generate summary due to a server error. Please try again.' };
   }
+}
+
+export async function transcribeAudioAction(audioDataUri: string) {
+    if (!audioDataUri) {
+        return { success: false, error: 'Audio data cannot be empty.' };
+    }
+    try {
+        const result = await transcribeAudio({ audioDataUri });
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error transcribing audio:', error);
+        return { success: false, error: 'Failed to transcribe audio due to a server error. Please try again.' };
+    }
 }

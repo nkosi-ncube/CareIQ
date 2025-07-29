@@ -4,3 +4,4 @@ config();
 import '@/ai/flows/summarize-consultation.ts';
 import '@/ai/flows/analyze-symptoms.ts';
 import '@/ai/flows/generate-follow-up-questions.ts';
+import '@/ai/flows/transcribe-audio.ts';
