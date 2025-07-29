@@ -9,7 +9,6 @@ import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import type { GeneratePrescriptionInput } from '@/ai/flows/generate-prescription';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
 import { translateText } from '@/ai/flows/translate-text';
-import { patientDetails } from './mock-data';
 import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
 import User, { IUser } from '@/models/User';
@@ -49,10 +48,23 @@ export async function getFollowUpQuestions(symptoms: string) {
       return { success: false, error: 'Symptoms description cannot be empty.' };
     }
     try {
-      // TODO: Get patient details from logged in user
+        const session = await getSession();
+        if (!session) {
+            return { success: false, error: 'Unauthorized' };
+        }
+        await dbConnect();
+        const user = await User.findById(session.id).lean();
+        if (!user) {
+            return { success: false, error: 'User not found' };
+        }
+
       const result = await generateFollowUpQuestions({
         symptomsDescription: symptoms,
-        patientDetails: patientDetails,
+        patientDetails: {
+            name: user.name,
+            age: user.age || 30, // Use a default if age is not set
+            knownConditions: [], // Placeholder
+        },
       });
       return { success: true, data: result };
     }
@@ -356,7 +368,7 @@ export async function getHcpDashboardData() {
             return urgencyOrder[a.urgencyLevel] - urgencyOrder[b.urgencyLevel];
         });
         
-        return { success: true, data: plainPatients };
+        return { success: true, data: plainPatients as WaitingPatient[] };
 
     } catch (error) {
         console.error('Error fetching HCP dashboard data:', error);
