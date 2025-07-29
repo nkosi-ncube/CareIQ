@@ -10,7 +10,7 @@ import { patientDetails } from './mock-data';
 import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
 import User, { IUser } from '@/models/User';
-import ConsultationModel from '@/models/Consultation';
+import ConsultationModel, { IConsultation } from '@/models/Consultation';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
@@ -56,19 +56,22 @@ export async function getFollowUpQuestions(symptoms: string) {
     }
 }
 
-export async function getAISummary(consultations: any[]) {
+export async function getAISummary(consultations: IConsultation[]) {
   if (!consultations || consultations.length === 0) {
     return { success: false, error: 'No consultation history provided.' };
   }
   try {
-    const history = consultations
+    const historyText = consultations
       .map(
-        (c) => `Date: ${new Date(c.createdAt).toLocaleDateString()}\nDoctor: ${c.hcp.name} (${c.hcp.specialty})\nSymptoms: ${c.symptomsSummary}\nDiagnosis: ${c.postConsultationSummary || 'N/A'}`
+        (c) => {
+          const diagnosisSummary = (c.aiDiagnosis as any)?.diagnosisSummary || 'N/A';
+          return `Date: ${new Date(c.createdAt).toLocaleDateString()}\nDoctor: ${(c.hcp as any).name} (${(c.hcp as any).specialty})\nSymptoms: ${c.symptomsSummary}\nDiagnosis: ${diagnosisSummary}`
+        }
       )
       .join('\n\n---\n\n');
     
     const result = await summarizeConsultationHistory({
-      consultationHistory: history,
+      consultationHistory: historyText,
     });
     return { success: true, data: result };
   } catch (error) {
