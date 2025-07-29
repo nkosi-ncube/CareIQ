@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { getAIMatch, getFollowUpQuestions, findAvailableHCPs, createConsultation } from '@/lib/actions';
+import { getAIMatch, getFollowUpQuestions, findAvailableHCPs, createConsultation, transcribeAudioAction } from '@/lib/actions';
 import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
@@ -46,6 +46,58 @@ export default function ConsultationForm() {
       symptoms: '',
     },
   });
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+      mediaRecorderRef.current.onstop = async () => {
+          setRecordingStatus('transcribing');
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+              const base64Audio = reader.result as string;
+              const response = await transcribeAudioAction(base64Audio);
+              if (response.success && response.data) {
+                  const currentSymptoms = form.getValues('symptoms');
+                  form.setValue('symptoms', `${currentSymptoms}${currentSymptoms ? ' ' : ''}${response.data.transcription}`);
+              } else {
+                  toast({
+                      variant: 'destructive',
+                      title: 'Transcription Failed',
+                      description: response.error,
+                  });
+              }
+              setRecordingStatus('idle');
+              stream.getTracks().forEach(track => track.stop());
+          };
+      };
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.start();
+      setRecordingStatus('recording');
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Microphone Error',
+        description: 'Could not access the microphone. Please check your browser permissions.',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recordingStatus === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -169,6 +221,21 @@ export default function ConsultationForm() {
                     <FormItem>
                     <div className="flex items-center justify-between">
                         <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={recordingStatus === 'recording' ? stopRecording : startRecording}
+                            disabled={recordingStatus === 'transcribing'}
+                            className="h-8 w-8"
+                            >
+                            {recordingStatus === 'idle' && <Mic className="h-4 w-4" />}
+                            {recordingStatus === 'recording' && <Square className="h-4 w-4 animate-pulse fill-red-500 text-red-500" />}
+                            {recordingStatus === 'transcribing' && <Loader className="h-4 w-4 animate-spin" />}
+                            <span className="sr-only">
+                                {recordingStatus === 'recording' ? 'Stop recording' : 'Record audio for symptoms'}
+                            </span>
+                        </Button>
                     </div>
                     <FormControl>
                         <Textarea
