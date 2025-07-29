@@ -10,11 +10,10 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {readFileSync, unlinkSync, writeFileSync} from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import {Readable} from 'stream';
 
 import ffmpeg from 'fluent-ffmpeg';
+// Correctly reference the path provided by the ffmpeg-static package
 import ffmpegPath from 'ffmpeg-static';
 
 if (ffmpegPath) {
@@ -44,37 +43,31 @@ export async function transcribeAudio(
   return transcribeAudioFlow(input);
 }
 
-async function convertToMp3(
-  inputBuffer: Buffer,
-  inputMimeType: string
-): Promise<Buffer> {
-  const tempInputPath = path.join(
-    os.tmpdir(),
-    `careiq-audio-in-${Date.now()}`
-  );
-  const tempOutputPath = path.join(
-    os.tmpdir(),
-    `careiq-audio-out-${Date.now()}.mp3`
-  );
-  writeFileSync(tempInputPath, inputBuffer);
+// Convert audio buffer to MP3 using streams
+async function convertToMp3(inputBuffer: Buffer): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const inputStream = new Readable();
+        inputStream.push(inputBuffer);
+        inputStream.push(null); // End the stream
 
-  return new Promise((resolve, reject) => {
-    ffmpeg(tempInputPath)
-      .format('mp3')
-      .on('error', (err) => {
-        console.error('FFmpeg error:', err);
-        unlinkSync(tempInputPath);
-        reject(err);
-      })
-      .on('end', () => {
-        const outputBuffer = readFileSync(tempOutputPath);
-        unlinkSync(tempInputPath);
-        unlinkSync(tempOutputPath);
-        resolve(outputBuffer);
-      })
-      .save(tempOutputPath);
-  });
+        const outputBuffers: Buffer[] = [];
+
+        ffmpeg(inputStream)
+            .format('mp3')
+            .on('error', (err) => {
+                console.error('FFmpeg error:', err);
+                reject(err);
+            })
+            .on('end', () => {
+                resolve(Buffer.concat(outputBuffers));
+            })
+            .pipe() // Pipe to stream
+            .on('data', (chunk) => {
+                outputBuffers.push(chunk);
+            });
+    });
 }
+
 
 const transcribeAudioFlow = ai.defineFlow(
   {
@@ -100,7 +93,7 @@ const transcribeAudioFlow = ai.defineFlow(
     // Let's convert to MP3 to be safe.
     if (!['audio/mpeg', 'audio/mp3'].includes(mimeType)) {
         console.log(`Converting audio from ${mimeType} to mp3...`);
-        audioBuffer = await convertToMp3(audioBuffer, mimeType);
+        audioBuffer = await convertToMp3(audioBuffer);
         targetMimeType = 'audio/mp3';
         console.log('Conversion complete.');
     }
