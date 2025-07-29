@@ -5,6 +5,7 @@ import ConsultationForm from "@/components/consultation-form";
 import CareHistory from "@/components/care-history";
 import { patientDetails } from "@/lib/mock-data";
 
+//fvfgfgf
 export default function Home() {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background">
