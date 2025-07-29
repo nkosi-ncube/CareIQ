@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { GenerateFollowUpQuestionsInputSchema } from './schemas';
+import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 
 export type Consultation = {
   id: string;
@@ -56,4 +57,5 @@ export interface WaitingPatient {
     patientName: string;
     patientAge: number;
     symptoms: string;
+    urgencyLevel: 'Low' | 'Medium' | 'High';
 }

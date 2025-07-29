@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
 import type { IConsultation } from "@/models/Consultation";
+import { cn } from "@/lib/utils";
 
 
 function ProfileTab({ user }: { user: UserSession | null }) {
@@ -205,7 +206,7 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                     <Card>
                         <CardHeader>
                             <CardTitle>Waiting Room</CardTitle>
-                            <CardDescription>Patients waiting for a live consultation.</CardDescription>
+                            <CardDescription>Patients waiting for a live consultation, prioritized by AI-assessed urgency.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
@@ -237,7 +238,14 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                                                     <AvatarFallback>{patient.patientName.charAt(0)}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                    <p className="font-bold text-lg">{patient.patientName}, {patient.patientAge}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-lg">{patient.patientName}, {patient.patientAge}</p>
+                                                        <Badge variant={
+                                                            patient.urgencyLevel === 'High' ? 'destructive' : 
+                                                            patient.urgencyLevel === 'Medium' ? 'secondary' : 'outline'
+                                                        }>{patient.urgencyLevel}</Badge>
+                                                    </div>
+
                                                     <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                                                         <Stethoscope className="h-4 w-4"/> 
                                                         <span className="truncate max-w-xs">{patient.symptoms}</span>

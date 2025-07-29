@@ -7,7 +7,7 @@ import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
 import { patientDetails } from './mock-data';
-import type { Consultation, UserSession } from './types';
+import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
 import User, { IUser } from '@/models/User';
 import ConsultationModel from '@/models/Consultation';
@@ -208,9 +208,9 @@ export async function findAvailableHCPs(specialties: string[]) {
 
         // For now, we assume all HCPs are "available". 
         // In a real app, this would check a status field.
-        // The user requested to see all HCPs for testing purposes.
         const hcps = await User.find({
             role: 'hcp',
+            // specialty: { $in: specialties }
         }).lean();
         
         if (!hcps || hcps.length === 0) {
@@ -322,7 +322,14 @@ export async function getHcpDashboardData() {
             patientName: (p.patient as any).name,
             patientAge: (p.patient as any).age,
             symptoms: p.symptomsSummary,
+            urgencyLevel: (p.aiAnalysis as any)?.urgencyLevel || 'Low'
         }));
+
+        // Sort by urgency: High -> Medium -> Low
+        plainPatients.sort((a, b) => {
+            const urgencyOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
+            return urgencyOrder[a.urgencyLevel] - urgencyOrder[b.urgencyLevel];
+        });
         
         return { success: true, data: plainPatients };
 
