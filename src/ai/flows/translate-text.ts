@@ -25,14 +25,13 @@ export type TranslateTextOutput = z.infer<typeof TranslateTextOutputSchema>;
 export async function translateText(input: TranslateTextInput): Promise<TranslateTextOutput> {
   const { text, targetLanguage, sourceLanguage } = input;
   
-  console.log('LELAPA_API env var:', process.env.LELAPA_API ? 'loaded' : 'not found');
   if (!process.env.LELAPA_API) {
     throw new Error('LELAPA_API environment variable is not set.');
   }
 
   // Do not call the API for empty strings
   if (!text || text.trim() === '') {
-    return { translatedText: '' };
+    return { translatedText: text };
   }
 
   try {
@@ -50,8 +49,7 @@ export async function translateText(input: TranslateTextInput): Promise<Translat
     });
 
     const result = await response.json();
-    console.log('Lelapa API Response:', JSON.stringify(result, null, 2));
-
+    
     if (!response.ok) {
         console.error("Lelapa API Error:", result);
         throw new Error(`Lelapa API request failed with status ${response.status}: ${result.detail || 'Unknown error'}`);

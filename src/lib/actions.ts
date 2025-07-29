@@ -519,8 +519,19 @@ export async function getPatientConsultationHistory() {
       .populate('hcp', 'name specialty')
       .sort({ createdAt: -1 })
       .lean();
-        
-      return { success: true, data: JSON.parse(JSON.stringify(history)) };
+      
+      // Manually serialize to convert ObjectId to string
+      const serializableHistory = history.map(doc => {
+        const plainObject = doc as any;
+        plainObject._id = doc._id.toString();
+        plainObject.patient = doc.patient.toString();
+        if (doc.hcp && (doc.hcp as any)._id) {
+            (plainObject.hcp as any)._id = (doc.hcp as any)._id.toString();
+        }
+        return plainObject;
+      });
+
+      return { success: true, data: serializableHistory };
     } catch (error) {
       console.error('Error fetching patient consultation history:', error);
       return { success: false, error: 'A server error occurred while fetching your history.' };
@@ -606,40 +617,37 @@ export async function translateContent(content: ContentToTranslate, language: st
 
     try {
         const translate = async (text: string | undefined | null) => {
-            if (!text) return '';
+            if (!text || text.trim() === '') return text || '';
             const result = await translateText({ text, targetLanguage: language });
             return result.translatedText;
         };
 
         const translatedContent: Record<string, any> = {};
 
-        if (content.symptomsSummary) {
-            translatedContent.symptomsSummary = await translate(content.symptomsSummary);
-        }
-        if (content.diagnosisSummary) {
-            translatedContent.diagnosisSummary = await translate(content.diagnosisSummary);
-        }
-        if (content.recommendedNextSteps) {
-            translatedContent.recommendedNextSteps = await translate(content.recommendedNextSteps);
-        }
-        if (content.prescriptionNotes) {
-            translatedContent.prescriptionNotes = await translate(content.prescriptionNotes);
-        }
+        const translationPromises: Promise<any>[] = [];
 
-        if (content.potentialConditions) {
-            translatedContent.potentialConditions = await Promise.all(content.potentialConditions.map(translate));
-        }
+        const process = (key: keyof ContentToTranslate, value: any) => {
+            if (typeof value === 'string') {
+                translationPromises.push(translate(value).then(res => translatedContent[key] = res));
+            } else if (Array.isArray(value) && key === 'potentialConditions') {
+                translationPromises.push(Promise.all(value.map(translate)).then(res => translatedContent[key] = res));
+            } else if (Array.isArray(value) && key === 'medications') {
+                translationPromises.push(Promise.all(
+                    value.map(async (med) => ({
+                        name: await translate(med.name),
+                        dosage: await translate(med.dosage),
+                        frequency: await translate(med.frequency),
+                        reason: await translate(med.reason),
+                    }))
+                ).then(res => translatedContent[key] = res));
+            }
+        };
 
-        if (content.medications) {
-            translatedContent.medications = await Promise.all(
-                content.medications.map(async (med) => ({
-                    name: await translate(med.name),
-                    dosage: await translate(med.dosage),
-                    frequency: await translate(med.frequency),
-                    reason: await translate(med.reason),
-                }))
-            );
+        for (const [key, value] of Object.entries(content)) {
+            process(key as keyof ContentToTranslate, value);
         }
+        
+        await Promise.all(translationPromises);
 
         return { success: true, data: translatedContent };
     } catch (error) {
