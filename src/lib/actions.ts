@@ -6,7 +6,6 @@ import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation'
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
 import { generatePrescription } from '@/ai/flows/generate-prescription';
-import { analyzeVitals } from '@/ai/flows/analyze-vitals';
 import { translateText } from '@/ai/flows/translate-text';
 import { patientDetails } from './mock-data';
 import type { UserSession, WaitingPatient } from './types';
@@ -582,21 +581,6 @@ export async function getConsultationSummary(consultationId: string) {
         return { success: false, error: 'A server error occurred: ' + error.message };
     }
 }
-
-export async function analyzeVitalsAction(vitals: { heartRate: number; bloodOxygen: number; temperature: number; }) {
-    const session = await getSession();
-    if (!session) {
-      return { success: false, error: 'Unauthorized' };
-    }
-    try {
-      const result = await analyzeVitals(vitals);
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('Error analyzing vitals:', error);
-      return { success: false, error: 'Failed to analyze vitals.' };
-    }
-  }
-
 
 type TranslatableKeys = 'symptomsSummary' | 'diagnosisSummary' | 'recommendedNextSteps' | 'prescriptionNotes';
 type TranslatableArrays = 'potentialConditions' | 'medications';

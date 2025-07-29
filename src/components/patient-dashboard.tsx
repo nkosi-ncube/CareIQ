@@ -8,7 +8,7 @@ import CareHistory from "@/components/care-history";
 import AuthButton from "@/components/auth-button";
 import type { UserSession } from "@/lib/types";
 import { FileText, User, Loader, AlertTriangle, Pill, HeartPulse, Link as LinkIcon, Activity, Wind, Thermometer } from "lucide-react";
-import { getPatientPrescriptions, analyzeVitalsAction } from '@/lib/actions';
+import { getPatientPrescriptions } from '@/lib/actions';
 import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescription';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
@@ -18,29 +18,26 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { cn } from '@/lib/utils';
-import type { AnalyzeVitalsOutput } from '@/ai/flows/analyze-vitals';
 
 
 const dummyVitalsData = [
-    { heartRate: 72, bloodOxygen: 98, temperature: 36.8 },
-    { heartRate: 75, bloodOxygen: 99, temperature: 36.9 },
-    { heartRate: 78, bloodOxygen: 98, temperature: 37.0 },
-    { heartRate: 85, bloodOxygen: 97, temperature: 37.2 }, // Slightly elevated HR
-    { heartRate: 82, bloodOxygen: 98, temperature: 37.1 },
-    { heartRate: 76, bloodOxygen: 99, temperature: 36.9 },
-    { heartRate: 95, bloodOxygen: 99, temperature: 37.8 }, // Elevated HR and Temp
-    { heartRate: 90, bloodOxygen: 98, temperature: 37.6 },
-    { heartRate: 88, bloodOxygen: 98, temperature: 37.4 },
-    { heartRate: 70, bloodOxygen: 99, temperature: 36.7 },
+    { heartRate: 72, bloodOxygen: 98, temperature: 36.8, status: 'Normal', analysis: 'Vitals are within the normal range.' },
+    { heartRate: 75, bloodOxygen: 99, temperature: 36.9, status: 'Normal', analysis: 'Vitals are stable and healthy.' },
+    { heartRate: 78, bloodOxygen: 98, temperature: 37.0, status: 'Normal', analysis: 'Excellent vitals.' },
+    { heartRate: 85, bloodOxygen: 97, temperature: 37.2, status: 'Normal', analysis: 'Heart rate is slightly elevated but still in a healthy range.' }, 
+    { heartRate: 82, bloodOxygen: 98, temperature: 37.1, status: 'Normal', analysis: 'Vitals are stable.' },
+    { heartRate: 76, bloodOxygen: 99, temperature: 36.9, status: 'Normal', analysis: 'Vitals look great.' },
+    { heartRate: 95, bloodOxygen: 99, temperature: 37.8, status: 'Warning', analysis: 'Heart rate and temperature are slightly elevated. Monitor for changes.' }, 
+    { heartRate: 90, bloodOxygen: 98, temperature: 37.6, status: 'Warning', analysis: 'Heart rate is elevated. Consider resting.' },
+    { heartRate: 88, bloodOxygen: 98, temperature: 37.4, status: 'Normal', analysis: 'Vitals returning to normal.' },
+    { heartRate: 70, bloodOxygen: 99, temperature: 36.7, status: 'Normal', analysis: 'Vitals are back to a resting state.' },
   ];
 
 function VitalsTab() {
     const [status, setStatus] = useState<'unlinked' | 'linking' | 'linked'>('unlinked');
     const [selectedDevice, setSelectedDevice] = useState<string>('');
     const [vitalsIndex, setVitalsIndex] = useState(0);
-    const [vitals, setVitals] = useState(dummyVitalsData[0]);
-    const [aiAnalysis, setAiAnalysis] = useState<AnalyzeVitalsOutput | null>(null);
-    const [isAnalyzing, startAnalyzingTransition] = useTransition();
+    const [currentVitals, setCurrentVitals] = useState(dummyVitalsData[0]);
 
     const handleLinkDevice = () => {
         if (!selectedDevice) return;
@@ -55,49 +52,32 @@ function VitalsTab() {
         if (status !== 'linked') return;
 
         const vitalsInterval = setInterval(() => {
-            setVitalsIndex(prev => (prev + 1) % dummyVitalsData.length);
+            setVitalsIndex(prev => {
+                const nextIndex = (prev + 1) % dummyVitalsData.length
+                setCurrentVitals(dummyVitalsData[nextIndex]);
+                return nextIndex;
+            });
         }, 2500); // Update vitals every 2.5 seconds
 
         return () => clearInterval(vitalsInterval);
     }, [status]);
 
-    useEffect(() => {
-        if (status === 'linked') {
-            setVitals(dummyVitalsData[vitalsIndex]);
-        }
-    }, [vitalsIndex, status]);
 
-
-     // Trigger AI analysis when vitals change
-     useEffect(() => {
-        if (status !== 'linked') return;
-        
-        startAnalyzingTransition(async () => {
-            const result = await analyzeVitalsAction(vitals);
-            if (result.success && result.data) {
-                setAiAnalysis(result.data as AnalyzeVitalsOutput);
-            }
-        });
-    }, [vitals, status]);
-
-
-    const VitalCard = ({ icon, value, unit, label, isAnalyzing }: { icon: React.ReactNode, value: number, unit: string, label: string, isAnalyzing?: boolean }) => (
+    const VitalCard = ({ icon, value, unit, label }: { icon: React.ReactNode, value: number, unit: string, label: string }) => (
         <Card className="flex-1 bg-background/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{label}</CardTitle>
                 {icon}
             </CardHeader>
             <CardContent>
-                {isAnalyzing ? <Skeleton className="h-8 w-24"/> : (
-                    <div className="text-2xl font-bold">
-                        {value} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
-                    </div>
-                )}
+                <div className="text-2xl font-bold">
+                    {value} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
+                </div>
             </CardContent>
         </Card>
     );
 
-    const AIStatusCard = ({ analysis, isAnalyzing }: { analysis: AnalyzeVitalsOutput | null, isAnalyzing: boolean }) => {
+    const AIStatusCard = ({ analysis }: { analysis: typeof dummyVitalsData[0] }) => {
         const statusStyles = {
             Normal: { icon: <Activity className="text-green-500" />, badge: 'secondary', text: 'text-green-500' },
             Warning: { icon: <AlertTriangle className="text-yellow-500" />, badge: 'default', text: 'text-yellow-500' },
@@ -105,7 +85,7 @@ function VitalsTab() {
         }
         
         const currentStatus = analysis?.status || 'Normal';
-        const styles = statusStyles[currentStatus];
+        const styles = statusStyles[currentStatus as keyof typeof statusStyles];
 
         return (
             <Card>
@@ -114,23 +94,12 @@ function VitalsTab() {
                     <CardDescription>Our AI agent continuously monitors your vitals for anomalies.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex items-center gap-4">
-                    {isAnalyzing ? <Skeleton className="h-12 w-12 rounded-full" /> : (
-                         <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-${styles.badge}/20`}>
-                            {styles.icon}
-                        </div>
-                    )}
+                    <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', `bg-${styles.badge}/20`)}>
+                        {styles.icon}
+                    </div>
                     <div>
-                        {isAnalyzing ? (
-                             <div className="space-y-2">
-                                <Skeleton className="h-5 w-32"/>
-                                <Skeleton className="h-4 w-56"/>
-                            </div>
-                        ) : (
-                            <>
-                                <p className={cn("font-bold text-lg", styles.text)}>{analysis?.status}</p>
-                                <p className="text-sm text-muted-foreground">{analysis?.analysis}</p>
-                            </>
-                        )}
+                        <p className={cn("font-bold text-lg", styles.text)}>{analysis?.status}</p>
+                        <p className="text-sm text-muted-foreground">{analysis?.analysis}</p>
                     </div>
                 </CardContent>
             </Card>
@@ -179,12 +148,12 @@ function VitalsTab() {
                     <CardDescription>Displaying live data from your connected {selectedDevice.replace('-', ' ')}.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col md:flex-row gap-4">
-                    <VitalCard icon={<HeartPulse className="text-red-500"/>} value={vitals.heartRate} unit="BPM" label="Heart Rate" isAnalyzing={isAnalyzing}/>
-                    <VitalCard icon={<Wind className="text-blue-500"/>} value={vitals.bloodOxygen} unit="SpO2 %" label="Blood Oxygen" isAnalyzing={isAnalyzing}/>
-                    <VitalCard icon={<Thermometer className="text-orange-500"/>} value={vitals.temperature} unit="°C" label="Temperature" isAnalyzing={isAnalyzing}/>
+                    <VitalCard icon={<HeartPulse className="text-red-500"/>} value={currentVitals.heartRate} unit="BPM" label="Heart Rate" />
+                    <VitalCard icon={<Wind className="text-blue-500"/>} value={currentVitals.bloodOxygen} unit="SpO2 %" label="Blood Oxygen" />
+                    <VitalCard icon={<Thermometer className="text-orange-500"/>} value={currentVitals.temperature} unit="°C" label="Temperature" />
                 </CardContent>
             </Card>
-            <AIStatusCard analysis={aiAnalysis} isAnalyzing={isAnalyzing} />
+            <AIStatusCard analysis={currentVitals} />
         </div>
     )
 }
