@@ -91,7 +91,7 @@ const registerSchema = z.object({
     password: z.string().min(8),
     role: z.enum(['patient', 'hcp']),
     practiceNumber: z.string().optional(),
-    paymentMethod: z.enum(['cash', 'medicalAid']).optional(),
+    paymentMethod: z.enum(['card', 'medicalAid']).optional(),
     medicalAidName: z.string().optional(),
     medicalAidMemberNumber: z.string().optional(),
 });

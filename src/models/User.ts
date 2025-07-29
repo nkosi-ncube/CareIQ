@@ -12,7 +12,7 @@ export interface IUser extends Document {
   password?: string;
   role: 'patient' | 'hcp';
   // Patient specific fields
-  paymentMethod?: 'cash' | 'medicalAid';
+  paymentMethod?: 'card' | 'medicalAid';
   medicalAidInfo?: {
     name: string;
     memberNumber: string;
@@ -32,7 +32,7 @@ const userSchema = new Schema<IUser>({
   },
   paymentMethod: { 
     type: String, 
-    enum: ['cash', 'medicalAid'],
+    enum: ['card', 'medicalAid'],
     required: function(this: IUser) { return this.role === 'patient'; }
   },
   medicalAidInfo: {

@@ -26,7 +26,7 @@ const registerSchema = z.object({
     password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
     role: z.enum(['patient', 'hcp']),
     practiceNumber: z.string().optional(),
-    paymentMethod: z.enum(['cash', 'medicalAid']).optional(),
+    paymentMethod: z.enum(['card', 'medicalAid']).optional(),
     medicalAidName: z.string().optional(),
     medicalAidMemberNumber: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -167,11 +167,11 @@ export default function RegisterPage() {
                     <Label>Payment Method</Label>
                     <RadioGroup
                       className="flex gap-4"
-                      onValueChange={(value: 'cash' | 'medicalAid') => setValue('paymentMethod', value)}
+                      onValueChange={(value: 'card' | 'medicalAid') => setValue('paymentMethod', value)}
                     >
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="cash" id="pm1" />
-                        <Label htmlFor="pm1">Cash</Label>
+                        <RadioGroupItem value="card" id="pm1" />
+                        <Label htmlFor="pm1">Card</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="medicalAid" id="pm2" />
