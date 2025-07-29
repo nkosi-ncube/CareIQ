@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { getAIMatch, getFollowUpQuestions, transcribeAudioAction, findAvailableHCPs, createConsultation } from '@/lib/actions';
+import { getAIMatch, getFollowUpQuestions, findAvailableHCPs, createConsultation } from '@/lib/actions';
 import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X, Mic, Square, Loader, User, Video } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
@@ -35,12 +35,9 @@ export default function ConsultationForm() {
   const [questions, setQuestions] = useState<GenerateFollowUpQuestionsOutput | null>(null);
   const [isFetchingQuestions, setIsFetchingQuestions] = useState(false);
   const [photo, setPhoto] = useState<{ file: File | null; dataUri: string | null }>({ file: null, dataUri: null });
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle');
   const [availableHCPs, setAvailableHCPs] = useState<HCP[]>([]);
   const [isFindingHCPs, setIsFindingHCPs] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -64,55 +61,6 @@ export default function ConsultationForm() {
   const removePhoto = () => {
     setPhoto({ file: null, dataUri: null });
   }
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-      mediaRecorderRef.current.onstop = handleStopRecording;
-      audioChunksRef.current = [];
-      mediaRecorderRef.current.start();
-      setRecordingStatus('recording');
-    } catch (err) {
-      console.error('Error accessing microphone:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Microphone Error',
-        description: 'Could not access the microphone. Please check your browser permissions.',
-      });
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && recordingStatus === 'recording') {
-      mediaRecorderRef.current.stop();
-       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-    }
-  };
-
-  const handleStopRecording = async () => {
-    setRecordingStatus('transcribing');
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async () => {
-      const base64Audio = reader.result as string;
-      const response = await transcribeAudioAction(base64Audio);
-      if (response.success && response.data) {
-        form.setValue('symptoms', response.data.transcription);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Transcription Failed',
-          description: response.error,
-        });
-      }
-      setRecordingStatus('idle');
-    };
-  };
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     startTransition(async () => {
@@ -221,25 +169,10 @@ export default function ConsultationForm() {
                     <FormItem>
                     <div className="flex items-center justify-between">
                         <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
-                        <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={recordingStatus === 'recording' ? stopRecording : startRecording}
-                        disabled={recordingStatus === 'transcribing'}
-                        className="h-8 w-8"
-                        >
-                        {recordingStatus === 'idle' && <Mic className="h-4 w-4" />}
-                        {recordingStatus === 'recording' && <Square className="h-4 w-4 animate-pulse fill-red-500 text-red-500" />}
-                        {recordingStatus === 'transcribing' && <Loader className="h-4 w-4 animate-spin" />}
-                        <span className="sr-only">
-                            {recordingStatus === 'recording' ? 'Stop recording' : 'Record audio'}
-                        </span>
-                        </Button>
                     </div>
                     <FormControl>
                         <Textarea
-                        placeholder="For the past week, I've have a persistent dry cough, a low-grade fever, and a headache... or record your audio."
+                        placeholder="For the past week, I've have a persistent dry cough, a low-grade fever, and a headache..."
                         className="min-h-[120px] resize-none"
                         {...field}
                         />
@@ -279,7 +212,7 @@ export default function ConsultationForm() {
             </div>
 
             <div className="md:col-span-2">
-                <Button type="submit" disabled={isPending || recordingStatus !== 'idle'} className="w-full sm:w-auto">
+                <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
                     {isPending ? 'Analyzing...' : 'Find a Specialist'}
                     {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
                 </Button>

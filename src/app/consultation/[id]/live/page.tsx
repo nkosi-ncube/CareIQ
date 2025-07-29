@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, Sparkles, Save, Pill, Check, Pencil } from "lucide-react";
-import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis, getAIPrescription, approvePrescription } from '@/lib/actions';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, Sparkles, Save, Pill, Check, Pencil, Square } from "lucide-react";
+import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis, getAIPrescription, approvePrescription, transcribeAudioAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { WaitingRoomData } from '@/lib/types';
 import type { GenerateDiagnosisOutput } from '@/ai/flows/generate-diagnosis';
@@ -13,6 +13,8 @@ import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescriptio
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -36,6 +38,10 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   const [isGeneratingPrescription, startPrescriptionTransition] = useTransition();
   const [aiPrescription, setAiPrescription] = useState<GeneratePrescriptionOutput | null>(null);
   const [isApproving, setIsApproving] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle');
 
 
   useEffect(() => {
@@ -193,6 +199,55 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     }
     setIsApproving(false);
   }
+
+  const startRecording = async () => {
+    try {
+      // Use a separate stream for recording to not interfere with video call stream
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+      mediaRecorderRef.current.onstop = async () => {
+          setRecordingStatus('transcribing');
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+              const base64Audio = reader.result as string;
+              const response = await transcribeAudioAction(base64Audio);
+              if (response.success && response.data) {
+                  setConsultationNotes(prev => `${prev}${prev ? ' ' : ''}${response.data.transcription}`);
+              } else {
+                  toast({
+                      variant: 'destructive',
+                      title: 'Transcription Failed',
+                      description: response.error,
+                  });
+              }
+              setRecordingStatus('idle');
+              // Clean up recording stream
+              stream.getTracks().forEach(track => track.stop());
+          };
+      };
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.start();
+      setRecordingStatus('recording');
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Microphone Error',
+        description: 'Could not access the microphone. Please check your browser permissions.',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recordingStatus === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
   
   if (isLoading) {
     return (
@@ -306,11 +361,29 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                         </p>
                     </div>
 
-                    <div className="pt-4">
-                        <h3 className="font-semibold mb-2">Consultation Notes</h3>
-                        <textarea 
+                    <div className="pt-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="consultation-notes" className="font-semibold">Consultation Notes</Label>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={recordingStatus === 'recording' ? stopRecording : startRecording}
+                                disabled={recordingStatus === 'transcribing'}
+                                className="h-8 w-8"
+                                >
+                                {recordingStatus === 'idle' && <Mic className="h-4 w-4" />}
+                                {recordingStatus === 'recording' && <Square className="h-4 w-4 animate-pulse fill-red-500 text-red-500" />}
+                                {recordingStatus === 'transcribing' && <Loader className="h-4 w-4 animate-spin" />}
+                                <span className="sr-only">
+                                    {recordingStatus === 'recording' ? 'Stop recording' : 'Record audio notes'}
+                                </span>
+                            </Button>
+                        </div>
+                        <Textarea 
+                            id="consultation-notes"
                             className="w-full h-48 p-2 border rounded-md" 
-                            placeholder="HCP starts typing notes here..."
+                            placeholder="HCP starts typing or dictates notes here..."
                             value={consultationNotes}
                             onChange={(e) => setConsultationNotes(e.target.value)}
                         />
