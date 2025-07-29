@@ -4,13 +4,15 @@ import { useRouter } from 'next/navigation';
 import { CareIqLogo } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, AlertTriangle, Sparkles, Save } from "lucide-react";
-import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis } from '@/lib/actions';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Stethoscope, Loader, Bot, FileText, Ambulance, Sparkles, Save, Pill, Check, Pencil } from "lucide-react";
+import { getWaitingRoomData, updateConsultationStatus, getAIDiagnosis, saveDiagnosis, getAIPrescription } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { WaitingRoomData } from '@/lib/types';
 import type { GenerateDiagnosisOutput } from '@/ai/flows/generate-diagnosis';
+import type { GeneratePrescriptionOutput } from '@/ai/flows/generate-prescription';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 export default function LiveConsultationPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -30,6 +32,9 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
   const [isGeneratingDiagnosis, startDiagnosisTransition] = useTransition();
   const [aiDiagnosis, setAiDiagnosis] = useState<GenerateDiagnosisOutput | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const [isGeneratingPrescription, startPrescriptionTransition] = useTransition();
+  const [aiPrescription, setAiPrescription] = useState<GeneratePrescriptionOutput | null>(null);
 
 
   useEffect(() => {
@@ -119,6 +124,7 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
     if (!data) return;
     startDiagnosisTransition(async () => {
         setAiDiagnosis(null);
+        setAiPrescription(null);
         const result = await getAIDiagnosis(data.symptomsSummary, consultationNotes);
         if (result.success && result.data) {
             setAiDiagnosis(result.data as GenerateDiagnosisOutput);
@@ -149,6 +155,23 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
         });
     }
     setIsSaving(false);
+  }
+
+  const handleGeneratePrescription = () => {
+    if (!aiDiagnosis) return;
+    startPrescriptionTransition(async () => {
+      setAiPrescription(null);
+      const result = await getAIPrescription(aiDiagnosis);
+      if(result.success && result.data) {
+        setAiPrescription(result.data as GeneratePrescriptionOutput);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Prescription Failed',
+          description: result.error,
+        });
+      }
+    });
   }
   
   if (isLoading) {
@@ -276,6 +299,13 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                 <CardFooter className="flex flex-col gap-2 items-start">
                     <h3 className="font-headline text-lg font-semibold w-full">Post-Consultation Actions</h3>
                     
+                    <div className="flex flex-col gap-2 w-full pt-2">
+                        <Button className="w-full justify-start" variant="outline" onClick={handleGenerateDiagnosis} disabled={isGeneratingDiagnosis || !consultationNotes}>
+                            {isGeneratingDiagnosis ? <Loader className="mr-2 animate-spin"/> : <Bot className="mr-2"/>} 
+                            Generate AI Diagnosis
+                        </Button>
+                    </div>
+
                     {isGeneratingDiagnosis && (
                          <div className="flex items-center gap-2 text-primary w-full p-2">
                             <Loader className="animate-spin" />
@@ -306,22 +336,60 @@ export default function LiveConsultationPage({ params }: { params: { id: string 
                                     <p className="text-muted-foreground">{aiDiagnosis.recommendedNextSteps}</p>
                                 </div>
                             </CardContent>
-                            <CardFooter>
+                            <CardFooter className='flex-col items-start gap-2'>
                                 <Button size="sm" onClick={handleSaveDiagnosis} disabled={isSaving}>
                                     {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
                                     Save Diagnosis
+                                </Button>
+                                <hr className='w-full my-2'/>
+                                <Button className="w-full justify-start" variant="outline" onClick={handleGeneratePrescription} disabled={isGeneratingPrescription}>
+                                    {isGeneratingPrescription ? <Loader className="mr-2 animate-spin"/> : <Pill className="mr-2"/>}
+                                    Generate AI Prescription
+                                </Button>
+                                <Button className="w-full justify-start" variant="outline"><Ambulance className="mr-2"/> Recommend Physical Visit</Button>
+                            </CardFooter>
+                        </Card>
+                    )}
+                    
+                    {isGeneratingPrescription && (
+                        <div className="flex items-center gap-2 text-primary w-full p-2">
+                            <Loader className="animate-spin" />
+                            <span>Generating prescription suggestion...</span>
+                        </div>
+                    )}
+
+                    {aiPrescription && (
+                         <Card className="w-full bg-accent/10 border-accent/20">
+                            <CardHeader>
+                                <CardTitle className="font-headline text-lg flex items-center gap-2 text-accent-foreground">
+                                    <Pill className='text-accent'/> AI Prescription Suggestion
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                {aiPrescription.medications.map((med, i) => (
+                                    <div key={i} className="p-2 border-b last:border-b-0">
+                                        <p className="font-bold">{med.name}</p>
+                                        <p className="text-muted-foreground">{med.dosage} - {med.frequency}</p>
+                                        <p className="text-xs text-muted-foreground/80 mt-1">Reason: {med.reason}</p>
+                                    </div>
+                                ))}
+                                 <div>
+                                    <h4 className="font-semibold mt-2">Notes</h4>
+                                    <p className="text-muted-foreground">{aiPrescription.notes}</p>
+                                </div>
+                            </CardContent>
+                            <CardFooter className='flex gap-2'>
+                               <Button size="sm" variant="default">
+                                    <Check className="mr-2 h-4 w-4"/> Approve
+                               </Button>
+                               <Button size="sm" variant="outline">
+                                    <Pencil className="mr-2 h-4 w-4"/> Edit
                                 </Button>
                             </CardFooter>
                         </Card>
                     )}
 
-                    <div className="flex flex-col gap-2 w-full pt-2">
-                        <Button className="w-full justify-start" variant="outline" onClick={handleGenerateDiagnosis} disabled={isGeneratingDiagnosis || !consultationNotes}>
-                            <Bot className="mr-2"/> Generate AI Diagnosis
-                        </Button>
-                        <Button className="w-full justify-start" variant="outline"><FileText className="mr-2"/> Create Prescription</Button>
-                        <Button className="w-full justify-start" variant="outline"><Ambulance className="mr-2"/> Recommend Physical Visit</Button>
-                    </div>
+
                 </CardFooter>
             </Card>
         </div>

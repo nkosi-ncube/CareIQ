@@ -5,6 +5,7 @@ import { generateFollowUpQuestions } from '@/ai/flows/generate-follow-up-questio
 import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation';
 import { transcribeAudio } from '@/ai/flows/transcribe-audio';
 import { generateDiagnosis } from '@/ai/flows/generate-diagnosis';
+import { generatePrescription } from '@/ai/flows/generate-prescription';
 import { patientDetails } from './mock-data';
 import type { Consultation, UserSession } from './types';
 import dbConnect from './db';
@@ -403,5 +404,19 @@ export async function saveDiagnosis(consultationId: string, diagnosis: any) {
     } catch (error) {
         console.error('Error saving diagnosis:', error);
         return { success: false, error: 'Failed to save diagnosis.' };
+    }
+}
+
+export async function getAIPrescription(diagnosis: any) {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    try {
+        const result = await generatePrescription({ diagnosis });
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error generating prescription:', error);
+        return { success: false, error: 'Failed to generate AI prescription suggestion.' };
     }
 }

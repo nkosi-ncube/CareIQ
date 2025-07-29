@@ -5,6 +5,7 @@ import ConsultationForm from "@/components/consultation-form";
 import CareHistory from "@/components/care-history";
 import AuthButton from "@/components/auth-button";
 import type { UserSession } from "@/lib/types";
+import { FileText } from "lucide-react";
 
 export default function PatientDashboard({ user }: { user: UserSession | null }) {
   return (
@@ -27,9 +28,10 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
         </div>
 
         <Tabs defaultValue="consultation" className="mx-auto w-full max-w-6xl">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="consultation" disabled={!user}>New Consultation</TabsTrigger>
             <TabsTrigger value="history" disabled={!user}>Care History</TabsTrigger>
+            <TabsTrigger value="prescriptions" disabled={!user}>Prescriptions</TabsTrigger>
           </TabsList>
           <TabsContent value="consultation">
              {user ? (
@@ -66,6 +68,36 @@ export default function PatientDashboard({ user }: { user: UserSession | null })
                  </CardHeader>
              </Card>
             )}
+          </TabsContent>
+          <TabsContent value="prescriptions">
+             {user ? (
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="font-headline">Your Prescriptions</CardTitle>
+                      <CardDescription>
+                        Here you can find all the prescriptions from your past consultations.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border bg-background p-8 text-center">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                                <FileText className="h-8 w-8 text-primary"/>
+                            </div>
+                            <h3 className="font-headline text-xl font-semibold">No prescriptions yet</h3>
+                            <p className="text-muted-foreground">Your approved prescriptions will appear here after a consultation.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+             ) : (
+                <Card className="shadow-lg flex flex-col items-center justify-center p-10 text-center">
+                    <CardHeader>
+                        <CardTitle className="font-headline">Please Log In</CardTitle>
+                        <CardDescription>
+                            You need to be logged in to view your prescriptions.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+             )}
           </TabsContent>
         </Tabs>
       </main>
