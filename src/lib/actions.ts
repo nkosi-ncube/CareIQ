@@ -14,6 +14,8 @@ import type { UserSession, WaitingPatient } from './types';
 import dbConnect from './db';
 import User, { IUser } from '@/models/User';
 import ConsultationModel, { IConsultation } from '@/models/Consultation';
+import AlertModel, { IAlert } from '@/models/Alert';
+import DiagnosticTestModel, { IDiagnosticTest } from '@/models/DiagnosticTest';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
@@ -658,4 +660,185 @@ export async function translateContent(content: ContentToTranslate, language: st
     }
 }
 
-    
+
+// HACKATHON-SPECIFIC ACTIONS
+const profileSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  notificationsEnabled: z.boolean().optional(),
+  preferredLanguage: z.string().optional(),
+});
+
+
+export async function getPatientProfile() {
+    const session = await getSession();
+    if (!session || session.role !== 'patient') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    try {
+        await dbConnect();
+        const user = await User.findById(session.id).lean();
+        if (!user) {
+            return { success: false, error: 'User not found' };
+        }
+        return { success: true, data: JSON.parse(JSON.stringify(user)) };
+    } catch (e) {
+        return { success: false, error: 'Server error' };
+    }
+}
+
+export async function getHcpProfile() {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+        return { success: false, error: 'Unauthorized' };
+    }
+    try {
+        await dbConnect();
+        const user = await User.findById(session.id).lean();
+        if (!user) {
+            return { success: false, error: 'User not found' };
+        }
+        return { success: true, data: JSON.parse(JSON.stringify(user)) };
+    } catch (e) {
+        return { success: false, error: 'Server error' };
+    }
+}
+
+
+export async function updateUserProfile(data: z.infer<typeof profileSchema>) {
+    const session = await getSession();
+    if (!session) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    try {
+        await dbConnect();
+        const user = await User.findById(session.id);
+        if (!user) {
+            return { success: false, error: 'User not found.' };
+        }
+
+        user.name = data.name;
+        user.email = data.email;
+
+        if (user.role === 'patient') {
+            user.notificationsEnabled = data.notificationsEnabled;
+            user.preferredLanguage = data.preferredLanguage;
+        }
+
+        await user.save();
+        revalidatePath('/');
+        return { success: true };
+    } catch (error) {
+        console.error(error);
+        return { success: false, error: 'Failed to update profile.' };
+    }
+}
+
+export async function getAlerts() {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+    try {
+        await dbConnect();
+        const alerts = await AlertModel.find({ user: session.id }).sort({ createdAt: -1 }).lean();
+        return { success: true, data: JSON.parse(JSON.stringify(alerts)) };
+    } catch (e) {
+        return { success: false, error: 'Failed to fetch alerts.' };
+    }
+}
+
+export async function seedAlerts() {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+    try {
+        await dbConnect();
+        const sampleAlerts = [
+            { user: session.id, title: 'Unusual heart rate detected during sleep.', status: 'unread' },
+            { user: session.id, title: 'Your prescription for Amoxicillin is ready for pickup.', status: 'unread' },
+            { user: session.id, title: 'Follow-up consultation reminder for next week.', status: 'read' },
+        ];
+        await AlertModel.insertMany(sampleAlerts);
+        revalidatePath('/');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: 'Failed to create sample alerts.' };
+    }
+}
+
+
+const testSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  result: z.string().min(1),
+  date: z.string(),
+});
+
+export async function createDiagnosticTest(data: z.infer<typeof testSchema>) {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    try {
+        await dbConnect();
+        const newTest = new DiagnosticTestModel({
+            ...data,
+            user: session.id,
+            date: new Date(data.date),
+        });
+        await newTest.save();
+        revalidatePath('/');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: 'Failed to create test.' };
+    }
+}
+
+export async function getDiagnosticTests() {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+    try {
+        await dbConnect();
+        const tests = await DiagnosticTestModel.find({ user: session.id }).sort({ date: -1 }).lean();
+        return { success: true, data: JSON.parse(JSON.stringify(tests)) };
+    } catch (e) {
+        return { success: false, error: 'Failed to fetch tests.' };
+    }
+}
+
+export async function updateDiagnosticTest(data: z.infer<typeof testSchema>) {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    try {
+        await dbConnect();
+        const test = await DiagnosticTestModel.findById(data.id);
+        if (!test || test.user.toString() !== session.id) {
+            return { success: false, error: 'Test not found or unauthorized.' };
+        }
+        test.name = data.name;
+        test.result = data.result;
+        test.date = new Date(data.date);
+        await test.save();
+        revalidatePath('/');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: 'Failed to update test.' };
+    }
+}
+
+export async function deleteDiagnosticTest(id: string) {
+    const session = await getSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    try {
+        await dbConnect();
+        const test = await DiagnosticTestModel.findById(id);
+        if (!test || test.user.toString() !== session.id) {
+            return { success: false, error: 'Test not found or unauthorized.' };
+        }
+        await DiagnosticTestModel.deleteOne({ _id: id });
+        revalidatePath('/');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: 'Failed to delete test.' };
+    }
+}

@@ -16,12 +16,16 @@ export interface IUser extends Document {
   email: string;
   password?: string;
   role: 'patient' | 'hcp';
+  
   // Patient specific fields
   paymentMethod?: 'card' | 'medicalAid';
   medicalAidInfo?: {
     name: string;
     memberNumber: string;
   };
+  notificationsEnabled?: boolean;
+  preferredLanguage?: string;
+
   // HCP specific fields
   practiceNumber?: string;
   specialty?: string;
@@ -32,15 +36,8 @@ const userSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true, select: false },
   role: { type: String, required: true, enum: ['patient', 'hcp'] },
-  practiceNumber: { 
-    type: String, 
-    required: function(this: IUser) { return this.role === 'hcp'; } 
-  },
-  specialty: {
-    type: String,
-    enum: hcpSpecialties,
-    required: function(this: IUser) { return this.role === 'hcp'; }
-  },
+  
+  // Patient specific
   paymentMethod: { 
     type: String, 
     enum: ['card', 'medicalAid'],
@@ -56,7 +53,20 @@ const userSchema = new Schema<IUser>({
         type: String,
         required: function(this: IUser) { return this.paymentMethod === 'medicalAid'; }
     }
-  }
+  },
+  notificationsEnabled: { type: Boolean, default: true },
+  preferredLanguage: { type: String, default: 'eng_Latn' },
+
+  // HCP specific
+  practiceNumber: { 
+    type: String, 
+    required: function(this: IUser) { return this.role === 'hcp'; } 
+  },
+  specialty: {
+    type: String,
+    enum: hcpSpecialties,
+    required: function(this: IUser) { return this.role === 'hcp'; }
+  },
 }, { timestamps: true });
 
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema);

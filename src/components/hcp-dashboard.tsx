@@ -3,13 +3,13 @@ import { CareIqLogo } from "@/components/icons";
 import AuthButton from "@/components/auth-button";
 import type { UserSession, WaitingPatient } from "@/lib/types";
 import { Input } from "./ui/input";
-import { Search, User, Clock, Stethoscope, Video, Loader, Calendar, FileText, AlertTriangle } from "lucide-react";
+import { Search, User, Clock, Stethoscope, Video, Loader, Calendar, FileText, AlertTriangle, Edit } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import Link from "next/link";
-import { getHcpDashboardData, updateConsultationStatus, getHcpConsultationHistory } from "@/lib/actions";
+import { getHcpDashboardData, updateConsultationStatus, getHcpConsultationHistory, getHcpProfile, updateUserProfile } from "@/lib/actions";
 import { useEffect, useState, useTransition } from "react";
 import { Skeleton } from "./ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -17,32 +17,120 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
 import type { IConsultation } from "@/models/Consultation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Label } from "./ui/label";
+
+const profileSchema = z.object({
+    name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+    email: z.string().email({ message: "Please enter a valid email." }),
+});
 
 
 function ProfileTab({ user }: { user: UserSession | null }) {
-    if (!user) return null;
+    const { toast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [profileData, setProfileData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const form = useForm<z.infer<typeof profileSchema>>({
+        resolver: zodResolver(profileSchema),
+        defaultValues: { name: '', email: '' }
+    });
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            setIsLoading(true);
+            const result = await getHcpProfile();
+            if (result.success && result.data) {
+                const hcpData = result.data as any;
+                setProfileData(hcpData);
+                form.reset({
+                    name: hcpData.name,
+                    email: hcpData.email,
+                });
+            }
+            setIsLoading(false);
+        };
+        fetchProfile();
+    }, [form]);
+
+    const onSubmit = async (data: z.infer<typeof profileSchema>) => {
+        setIsSubmitting(true);
+        const result = await updateUserProfile(data);
+        if (result.success) {
+            toast({ title: "Profile Updated", description: "Your changes have been saved." });
+            setIsEditing(false);
+            setProfileData({ ...profileData, ...data });
+        } else {
+            toast({ variant: "destructive", title: "Update Failed", description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+
+    if (isLoading) {
+        return (
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-7 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (!profileData) return null;
+
     return (
         <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle className="font-headline">Your Profile</CardTitle>
-                <CardDescription>
-                    Your professional information.
-                </CardDescription>
+             <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="font-headline">Your Profile</CardTitle>
+                    <CardDescription>
+                        Your professional information.
+                    </CardDescription>
+                </div>
+                 <Button variant="outline" size="icon" onClick={() => setIsEditing(!isEditing)}>
+                    <Edit className="h-4 w-4" />
+                </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center">
-                    <span className="w-32 text-muted-foreground">Name</span>
-                    <span>{user.name}</span>
-                </div>
-                 <div className="flex items-center">
-                    <span className="w-32 text-muted-foreground">Email</span>
-                    <span>{user.email}</span>
-                </div>
-                 <div className="flex items-center">
-                    <span className="w-32 text-muted-foreground">Role</span>
-                    <Badge variant="outline">{user.role}</Badge>
-                </div>
-                 {/* In a real app, we'd fetch the full HCP user object to get specialty, etc. */}
+            <CardContent>
+                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Full Name</Label>
+                        <Input id="name" {...form.register('name')} disabled={!isEditing} />
+                        {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input id="email" type="email" {...form.register('email')} disabled={!isEditing} />
+                        {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Practice Number</Label>
+                        <Input value={profileData.practiceNumber} disabled />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Specialty</Label>
+                        <Input value={profileData.specialty} disabled />
+                    </div>
+                    {isEditing && (
+                        <div className="flex gap-2">
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Changes
+                            </Button>
+                             <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                        </div>
+                    )}
+                 </form>
             </CardContent>
         </Card>
     );
@@ -86,11 +174,8 @@ function HistoryTab() {
         return <Alert variant="destructive"><AlertTriangle/><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
     }
 
-    const getHcpTitle = (specialty: string) => {
-        if (!specialty) return '';
-        if (specialty === 'General Practice') return 'Dr.';
-        // For 'Psychiatry', the user mentioned 'Psychotherapist'. We'll assume other specialties can be used as titles.
-        return specialty;
+    const getPatientName = (patient: any) => {
+        return patient?.name || 'Unknown Patient';
     }
 
     return (
@@ -114,10 +199,10 @@ function HistoryTab() {
                             <div key={c._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4">
                                 <div className="flex items-center gap-4 mb-4 sm:mb-0">
                                     <Avatar className="h-12 w-12">
-                                        <AvatarFallback>{(c.patient as any).name.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback>{getPatientName(c.patient).charAt(0)}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <p className="font-bold text-lg">Consultation with {getHcpTitle((c.hcp as any).specialty)} {(c.patient as any).name}</p>
+                                        <p className="font-bold text-lg">Consultation with {getPatientName(c.patient)}</p>
                                         <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                                             <Calendar className="h-4 w-4"/> 
                                             {new Date(c.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
