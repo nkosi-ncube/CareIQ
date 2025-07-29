@@ -29,6 +29,11 @@ export async function translateText(input: TranslateTextInput): Promise<Translat
     throw new Error('LELAPA_API_KEY environment variable is not set.');
   }
 
+  // Do not call the API for empty strings
+  if (!text || text.trim() === '') {
+    return { translatedText: '' };
+  }
+
   try {
     const response = await fetch('https://vulavula-services.lelapa.ai/api/v1/translate/process', {
       method: 'POST',
@@ -45,6 +50,7 @@ export async function translateText(input: TranslateTextInput): Promise<Translat
 
     if (!response.ok) {
         const errorBody = await response.json();
+        console.error("Lelapa API Error:", errorBody);
         throw new Error(`Lelapa API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
     }
 
