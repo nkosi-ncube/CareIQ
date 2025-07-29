@@ -155,6 +155,11 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                         <SelectItem value="fr">French</SelectItem>
                         <SelectItem value="de">German</SelectItem>
                         <SelectItem value="zu">Zulu</SelectItem>
+                        <SelectItem value="sw">Swahili</SelectItem>
+                        <SelectItem value="ha">Hausa</SelectItem>
+                        <SelectItem value="yo">Yoruba</SelectItem>
+                        <SelectItem value="ig">Igbo</SelectItem>
+                        <SelectItem value="am">Amharic</SelectItem>
                     </SelectContent>
                 </Select>
                 <div className="text-sm text-muted-foreground whitespace-nowrap">
