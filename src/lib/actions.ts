@@ -530,7 +530,7 @@ export async function getHcpConsultationHistory() {
       .sort({ createdAt: -1 })
       .lean();
   
-      return { success: true, data: history };
+      return { success: true, data: JSON.parse(JSON.stringify(history)) };
     } catch (error) {
       console.error('Error fetching HCP consultation history:', error);
       return { success: false, error: 'A server error occurred while fetching your history.' };
