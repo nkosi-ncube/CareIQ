@@ -520,7 +520,7 @@ export async function getPatientConsultationHistory() {
       .sort({ createdAt: -1 })
       .lean();
         
-      return { success: true, data: history };
+      return { success: true, data: JSON.parse(JSON.stringify(history)) };
     } catch (error) {
       console.error('Error fetching patient consultation history:', error);
       return { success: false, error: 'A server error occurred while fetching your history.' };
@@ -605,46 +605,43 @@ export async function translateContent(content: ContentToTranslate, language: st
     }
 
     try {
-        const translations: Record<string, any> = {};
-
-        const translate = async (text: string) => {
+        const translate = async (text: string | undefined | null) => {
+            if (!text) return '';
             const result = await translateText({ text, targetLanguage: language });
             return result.translatedText;
         };
 
-        const translationPromises: Promise<any>[] = [];
+        const translatedContent: Record<string, any> = {};
 
-        for (const key in content) {
-            const value = content[key as keyof ContentToTranslate];
-            if (typeof value === 'string') {
-                translationPromises.push(
-                    translate(value).then(t => { translations[key] = t; })
-                );
-            } else if (Array.isArray(value)) {
-                if (key === 'medications') {
-                     translationPromises.push(
-                        Promise.all(
-                            (value as Medication[]).map(async (med) => ({
-                                name: await translate(med.name),
-                                dosage: await translate(med.dosage),
-                                frequency: await translate(med.frequency),
-                                reason: await translate(med.reason),
-                            }))
-                        ).then(t => { translations[key] = t; })
-                    );
-                } else {
-                     translationPromises.push(
-                        Promise.all(
-                            (value as string[]).map(text => translate(text))
-                        ).then(t => { translations[key] = t; })
-                    );
-                }
-            }
+        if (content.symptomsSummary) {
+            translatedContent.symptomsSummary = await translate(content.symptomsSummary);
         }
-        
-        await Promise.all(translationPromises);
+        if (content.diagnosisSummary) {
+            translatedContent.diagnosisSummary = await translate(content.diagnosisSummary);
+        }
+        if (content.recommendedNextSteps) {
+            translatedContent.recommendedNextSteps = await translate(content.recommendedNextSteps);
+        }
+        if (content.prescriptionNotes) {
+            translatedContent.prescriptionNotes = await translate(content.prescriptionNotes);
+        }
 
-        return { success: true, data: translations };
+        if (content.potentialConditions) {
+            translatedContent.potentialConditions = await Promise.all(content.potentialConditions.map(translate));
+        }
+
+        if (content.medications) {
+            translatedContent.medications = await Promise.all(
+                content.medications.map(async (med) => ({
+                    name: await translate(med.name),
+                    dosage: await translate(med.dosage),
+                    frequency: await translate(med.frequency),
+                    reason: await translate(med.reason),
+                }))
+            );
+        }
+
+        return { success: true, data: translatedContent };
     } catch (error) {
         console.error('Error translating content:', error);
         return { success: false, error: 'Failed to translate content.' };

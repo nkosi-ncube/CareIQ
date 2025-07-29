@@ -74,6 +74,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
 
         if (result.success && result.data) {
             const translated = result.data;
+            
             const newDiagnosis = consultation.aiDiagnosis ? {
                 ...consultation.aiDiagnosis,
                 diagnosisSummary: translated.diagnosisSummary || consultation.aiDiagnosis.diagnosisSummary,
