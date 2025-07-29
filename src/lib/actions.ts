@@ -6,13 +6,14 @@ import { summarizeConsultationHistory } from '@/ai/flows/summarize-consultation'
 import { patientDetails } from './mock-data';
 import type { Consultation } from './types';
 
-export async function getAIMatch(symptoms: string) {
+export async function getAIMatch(symptoms: string, photoDataUri?: string | null) {
   if (!symptoms) {
     return { success: false, error: 'Symptoms description cannot be empty.' };
   }
   try {
     const result = await analyzeSymptomsForConsultation({
       symptomsDescription: symptoms,
+      photoDataUri: photoDataUri || undefined,
     });
     return { success: true, data: result };
   } catch (error) {

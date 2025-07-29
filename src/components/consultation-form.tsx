@@ -4,20 +4,22 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import Image from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getAIMatch, getFollowUpQuestions } from '@/lib/actions';
-import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info } from 'lucide-react';
+import { Sparkles, Stethoscope, AlertTriangle, Lightbulb, HelpCircle, Info, Upload, X } from 'lucide-react';
 import type { AnalyzeSymptomsOutput } from '@/ai/flows/analyze-symptoms';
 import type { GenerateFollowUpQuestionsOutput } from '@/ai/flows/generate-follow-up-questions';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Input } from './ui/input';
 
 const FormSchema = z.object({
   symptoms: z.string().min(20, { message: 'Please describe your symptoms in at least 20 characters.' }),
@@ -28,6 +30,7 @@ export default function ConsultationForm() {
   const [result, setResult] = useState<AnalyzeSymptomsOutput | null>(null);
   const [questions, setQuestions] = useState<GenerateFollowUpQuestionsOutput | null>(null);
   const [isFetchingQuestions, setIsFetchingQuestions] = useState(false);
+  const [photo, setPhoto] = useState<{ file: File | null; dataUri: string | null }>({ file: null, dataUri: null });
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -37,11 +40,26 @@ export default function ConsultationForm() {
     },
   });
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPhoto({ file, dataUri: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removePhoto = () => {
+    setPhoto({ file: null, dataUri: null });
+  }
+
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     startTransition(async () => {
       setResult(null);
       setQuestions(null);
-      const response = await getAIMatch(data.symptoms);
+      const response = await getAIMatch(data.symptoms, photo.dataUri);
 
       if (response.success && response.data) {
         setResult(response.data as AnalyzeSymptomsOutput);
@@ -101,28 +119,61 @@ export default function ConsultationForm() {
   return (
     <div className="space-y-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="symptoms"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-4">
+            <FormField
+              control={form.control}
+              name="symptoms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-headline text-lg">Your Symptoms</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="For the past week, I've have a persistent dry cough, a low-grade fever, and a headache..."
+                      className="min-h-[120px] resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormItem>
+                <FormLabel className="font-headline text-lg">Upload a Photo (Optional)</FormLabel>
                 <FormControl>
-                  <Textarea
-                    placeholder="For example: 'For the past week, I've have a persistent dry cough, a low-grade fever, and a headache...'"
-                    className="min-h-[120px] resize-none"
-                    {...field}
-                  />
+                    <Input type="file" accept="image/*" onChange={handleFileChange} />
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-            {isPending ? 'Analyzing...' : 'Find a Specialist'}
-            {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
-          </Button>
+                <FormDescription>
+                    If you have a visible symptom (e.g., a rash or swelling), you can upload a photo.
+                </FormDescription>
+             </FormItem>
+          </div>
+          <div className="space-y-2">
+            <FormLabel className="font-headline text-lg text-transparent md:block hidden">Preview</FormLabel>
+            <Card className={cn("flex items-center justify-center bg-background border-2 border-dashed h-full min-h-[120px]", !photo.dataUri && "py-10")}>
+                {photo.dataUri ? (
+                    <div className="relative w-full h-full max-h-60">
+                        <Image src={photo.dataUri} alt="Symptom photo" layout="fill" objectFit="contain" className="rounded-md" />
+                        <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={removePhoto}>
+                           <X className="h-4 w-4"/>
+                           <span className="sr-only">Remove photo</span>
+                        </Button>
+                    </div>
+                ): (
+                    <div className="text-center text-muted-foreground p-4">
+                        <Upload className="mx-auto h-12 w-12" />
+                        <p className="mt-2 text-sm">Image preview will appear here.</p>
+                    </div>
+                )}
+            </Card>
+          </div>
+
+          <div className="md:col-span-2">
+            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+                {isPending ? 'Analyzing...' : 'Find a Specialist'}
+                {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
+            </Button>
+          </div>
         </form>
       </Form>
 
