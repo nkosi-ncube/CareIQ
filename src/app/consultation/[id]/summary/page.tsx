@@ -50,7 +50,7 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   const handleLanguageChange = (language: string) => {
-    if (!consultation || language === 'en') {
+    if (!consultation || language === 'eng_Latn') {
         // Reset to original content if English is selected
         setTranslatedContent({
             symptomsSummary: consultation!.symptomsSummary,
@@ -145,17 +145,21 @@ function ConsultationSummaryPage({ params }: { params: { id: string } }) {
                 </h1>
             </div>
             <div className="flex items-center gap-4 w-full sm:w-auto">
-                 <Select onValueChange={handleLanguageChange} defaultValue="en">
+                 <Select onValueChange={handleLanguageChange} defaultValue="eng_Latn">
                     <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Language" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Spanish</SelectItem>
-                        <SelectItem value="fr">French</SelectItem>
-                        <SelectItem value="de">German</SelectItem>
-                        <SelectItem value="zu">Zulu</SelectItem>
-                        <SelectItem value="sw">Swahili</SelectItem>
+                        <SelectItem value="eng_Latn">English</SelectItem>
+                        <SelectItem value="afr_Latn">Afrikaans</SelectItem>
+                        <SelectItem value="nso_Latn">Northern Sotho</SelectItem>
+                        <SelectItem value="sot_Latn">Southern Sotho</SelectItem>
+                        <SelectItem value="ssw_Latn">Swati</SelectItem>
+                        <SelectItem value="swh_Latn">Swahili</SelectItem>
+                        <SelectItem value="tso_Latn">Tsonga</SelectItem>
+                        <SelectItem value="tsn_Latn">Tswana</SelectItem>
+                        <SelectItem value="xho_Latn">Xhosa</SelectItem>
+                        <SelectItem value="zul_Latn">Zulu</SelectItem>
                         <SelectItem value="ha">Hausa</SelectItem>
                         <SelectItem value="yo">Yoruba</SelectItem>
                         <SelectItem value="ig">Igbo</SelectItem>

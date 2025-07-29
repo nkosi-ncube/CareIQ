@@ -24,7 +24,7 @@ This project is a functional prototype demonstrating the core "CareConsult" flow
 *   **AI-Assisted Prescriptions (`CareDocument`)**: Based on the AI diagnosis, the HCP can generate a suggested prescription. The HCP must review and approve this prescription, emphasizing the principle of human-in-the-loop.
 *   **Prescription Viewing & Downloading**: Patients can view their approved prescriptions on their dashboard and download them as a PDF.
 *   **Consultation History**: Both patients and HCPs can view a history of their past completed consultations.
-*   **Multi-Language Support**: Consultation summaries can be dynamically translated into multiple languages, including several African languages (Zulu, Swahili, Hausa, etc.), using an AI translation service.
+*   **Multi-Language Support**: Consultation summaries can be dynamically translated into multiple languages, including several African languages (Zulu, Swahili, Hausa, etc.), using the Lelapa AI translation service.
 *   **Health Check Endpoint**: A `/api/health` endpoint to verify database connectivity for monitoring purposes.
 *   **Unit Testing**: The project is set up with Jest and React Testing Library for unit testing.
 
@@ -62,10 +62,11 @@ Follow these instructions to get the project running on your local machine for d
     ```sh
     npm install
     ```
-4. Create a `.env` file in the root of the project and add your Gemini API key:
+4. Create a `.env` file in the root of the project and add your API keys:
     ```
-    GEMINI_API_KEY=your_api_key_here
-    MONGO_URI=your_mongodb_connection_string
+    GEMINI_API_KEY="your_google_ai_api_key_here"
+    LELAPA_API_KEY="your_lelapa_api_key_here"
+    MONGO_URI="your_mongodb_connection_string"
     ```
 
 ### Running the Application
@@ -110,4 +111,4 @@ The application provides a health-check endpoint to verify database connectivity
 -   **UI Components**: [ShadCN UI](https://ui.shadcn.com/)
 -   **Testing**: [Jest](https://jestjs.io/), [React Testing Library](https://testing-library.com/)
 -   **Database**: [MongoDB](https://www.mongodb.com/)
--   **AI/ML**: [Google Genkit](https://firebase.google.com/docs/genkit)
+-   **AI/ML**: [Google Genkit](https://firebase.google.com/docs/genkit), [Lelapa AI](https://lelapa.ai/)
