@@ -24,6 +24,7 @@ This project is a functional prototype demonstrating the core "CareConsult" flow
 *   **AI-Assisted Prescriptions (`CareDocument`)**: Based on the AI diagnosis, the HCP can generate a suggested prescription. The HCP must review and approve this prescription, emphasizing the principle of human-in-the-loop.
 *   **Prescription Viewing & Downloading**: Patients can view their approved prescriptions on their dashboard and download them as a PDF.
 *   **Consultation History**: Both patients and HCPs can view a history of their past completed consultations.
+*   **Multi-Language Support**: Consultation summaries can be dynamically translated into multiple languages (e.g., Spanish, French, German, Zulu) using an AI translation service.
 *   **Health Check Endpoint**: A `/api/health` endpoint to verify database connectivity for monitoring purposes.
 *   **Unit Testing**: The project is set up with Jest and React Testing Library for unit testing.
 
@@ -79,7 +80,7 @@ This project uses Genkit for its AI capabilities, which runs as a separate proce
     This will start the AI flows and make them available to the application.
 
 2.  **Start the Next.js development server**:
-    In a second terminal, run the following command to start the Next.js frontend.
+    In a second terminal, run the following command to start the Next.js development server.
     ```sh
     npm run dev
     ```
