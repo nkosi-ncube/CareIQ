@@ -84,9 +84,9 @@ export async function transcribeAudioAction(audioDataUri: string) {
     try {
         const result = await transcribeAudio({ audioDataUri });
         return { success: true, data: result };
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error transcribing audio:', error);
-        return { success: false, error: 'Failed to transcribe audio due to a server error. Please try again.' };
+        return { success: false, error: error.message || 'Failed to transcribe audio due to a server error.' };
     }
 }
 
