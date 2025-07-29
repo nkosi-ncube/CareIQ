@@ -519,3 +519,33 @@ export async function getHcpConsultationHistory() {
       return { success: false, error: 'A server error occurred while fetching your history.' };
     }
 }
+
+export async function getConsultationSummary(consultationId: string) {
+    const session = await getSession();
+    if (!session) {
+        redirect('/login');
+    }
+
+    try {
+        await dbConnect();
+        const consultation = await ConsultationModel.findById(consultationId)
+            .populate('hcp', 'name specialty')
+            .populate('patient', 'name')
+            .lean();
+
+        if (!consultation) {
+            return { success: false, error: 'Consultation not found.' };
+        }
+
+        // Ensure only the patient or the assigned HCP can view this page
+        if (session.id !== (consultation.patient as any)._id.toString() && session.id !== (consultation.hcp as any)._id.toString()) {
+            return { success: false, error: 'You are not authorized to view this consultation.' };
+        }
+
+        // Use toJSON to ensure all data is serializable
+        return { success: true, data: JSON.parse(JSON.stringify(consultation)) };
+    } catch (error: any) {
+        console.error('Error getting consultation summary:', error);
+        return { success: false, error: 'A server error occurred: ' + error.message };
+    }
+}
