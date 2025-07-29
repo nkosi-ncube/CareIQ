@@ -338,24 +338,26 @@ export default function ConsultationForm() {
                     </div>
                 )}
                 {questions && (
-                    <form onSubmit={(e) => { e.preventDefault(); onAnswerSubmit(); }} className="space-y-4">
-                        {questions.questions.map((q, i) => (
-                           <FormItem key={i}>
-                                <FormLabel>{q}</FormLabel>
-                                <FormControl>
-                                    <Input 
-                                        placeholder="Your answer..."
-                                        value={answers[i]}
-                                        onChange={(e) => handleAnswerChange(i, e.target.value)}
-                                    />
-                                </FormControl>
-                           </FormItem>
-                        ))}
-                         <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-                            {isPending ? 'Analyzing...' : 'Find a Specialist'}
-                            {!isPending && <Send className="ml-2 h-4 w-4" />}
-                        </Button>
-                    </form>
+                     <Form {...form}>
+                        <form onSubmit={(e) => { e.preventDefault(); onAnswerSubmit(); }} className="space-y-4">
+                            {questions.questions.map((q, i) => (
+                            <FormItem key={i}>
+                                    <FormLabel>{q}</FormLabel>
+                                    <FormControl>
+                                        <Input 
+                                            placeholder="Your answer..."
+                                            value={answers[i]}
+                                            onChange={(e) => handleAnswerChange(i, e.target.value)}
+                                        />
+                                    </FormControl>
+                            </FormItem>
+                            ))}
+                            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+                                {isPending ? 'Analyzing...' : 'Find a Specialist'}
+                                {!isPending && <Send className="ml-2 h-4 w-4" />}
+                            </Button>
+                        </form>
+                    </Form>
                 )}
             </CardContent>
         </Card>
