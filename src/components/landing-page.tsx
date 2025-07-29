@@ -24,7 +24,7 @@ export default function LandingPage() {
         </div>
       </header>
       <main className="flex-1">
-        <section className="w-full py-12 md:py-24 lg:py-32">
+        <section className="w-full py-12 md:py-16 lg:py-20">
           <div className="container mx-auto px-4 md:px-6">
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
               <div className="flex flex-col justify-center space-y-4">
@@ -50,8 +50,7 @@ export default function LandingPage() {
                   alt="Hero"
                   className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full"
                   height="310"
-                  src="https://placehold.co/550x310.png"
-                  data-ai-hint="doctor patient telehealth"
+                  src="https://ik.imagekit.io/qamfbdbzl/ChatGPT%20Image%20Jul%2029,%202025,%2006_50_11%20PM.png"
                   width="550"
                 />
               </div>
