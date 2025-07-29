@@ -18,19 +18,16 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 function PrescriptionsTab() {
-    const [prescriptions, setPrescriptions] = useState<GeneratePrescriptionOutput[]>([]);
+    const [prescriptions, setPrescriptions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const prescriptionRefs = useRef<(HTMLDivElement | null)[]>([]);
-    const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPrescriptions = async () => {
             setIsLoading(true);
             const result = await getPatientPrescriptions();
             if (result.success && result.data) {
-                setPrescriptions(result.data as GeneratePrescriptionOutput[]);
-                prescriptionRefs.current = prescriptionRefs.current.slice(0, result.data.length);
+                setPrescriptions(result.data as any[]);
             } else {
                 setError(result.error ?? "Failed to load prescriptions.");
             }
@@ -39,16 +36,10 @@ function PrescriptionsTab() {
         fetchPrescriptions();
     }, []);
 
-    const handleDownloadPdf = async (index: number, consultationId: string) => {
-        const prescriptionElement = prescriptionRefs.current[index];
-        if (!prescriptionElement) {
-            return;
-        }
-        setIsDownloading(consultationId);
+    const handleDownloadPdf = async (prescriptionElement: HTMLElement | null, consultationId: string) => {
+        if (!prescriptionElement) return;
         try {
-            const canvas = await html2canvas(prescriptionElement, {
-                scale: 2, // Higher scale for better quality
-            });
+            const canvas = await html2canvas(prescriptionElement, { scale: 2 });
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: 'portrait',
@@ -59,11 +50,9 @@ function PrescriptionsTab() {
             pdf.save(`prescription-${consultationId}.pdf`);
         } catch (error) {
             console.error("Error generating PDF:", error);
-            // You might want to show a toast notification here
         }
-        setIsDownloading(null);
     };
-
+    
     if (isLoading) {
         return (
             <Card className="shadow-lg">
@@ -109,35 +98,50 @@ function PrescriptionsTab() {
                 ) : (
                     <div className="space-y-4">
                         {prescriptions.map((presc, index) => (
-                             <Card key={index} className="w-full bg-accent/10 border-accent/20" ref={el => prescriptionRefs.current[index] = el}>
-                                <CardHeader>
-                                    <CardTitle className="font-headline text-lg flex items-center justify-between gap-2 text-accent-foreground">
-                                        <div className='flex items-center gap-2'>
-                                            <Pill className='text-accent'/> Prescription Details
-                                        </div>
-                                        <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(index, `presc-${index}`)} disabled={isDownloading === `presc-${index}`}>
-                                            {isDownloading === `presc-${index}` ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                            Download PDF
-                                        </Button>
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3 text-sm">
-                                    {(presc as any).medications.map((med: any, i: number) => (
-                                        <div key={i} className="p-2 border-b last:border-b-0">
-                                            <p className="font-bold">{med.name}</p>
-                                            <p className="text-muted-foreground">{med.dosage} - {med.frequency}</p>
-                                            <p className="text-xs text-muted-foreground/80 mt-1">Reason: {med.reason}</p>
-                                        </div>
-                                    ))}
-                                    <div>
-                                        <h4 className="font-semibold mt-2">Notes from your Doctor</h4>
-                                        <p className="text-muted-foreground">{(presc as any).notes}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <PrescriptionCardWrapper key={presc.consultationId || index} prescription={presc.aiPrescription} consultationId={presc.consultationId} onDownload={handleDownloadPdf} />
                         ))}
                     </div>
                 )}
+            </CardContent>
+        </Card>
+    )
+}
+
+function PrescriptionCardWrapper({ prescription, consultationId, onDownload }: { prescription: GeneratePrescriptionOutput, consultationId: string, onDownload: Function }) {
+    const cardRef = useRef<HTMLDivElement | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const download = async () => {
+        setIsDownloading(true);
+        await onDownload(cardRef.current, consultationId);
+        setIsDownloading(false);
+    }
+
+    return (
+         <Card className="w-full bg-accent/10 border-accent/20" ref={cardRef}>
+            <CardHeader>
+                <CardTitle className="font-headline text-lg flex items-center justify-between gap-2 text-accent-foreground">
+                    <div className='flex items-center gap-2'>
+                        <Pill className='text-accent'/> Prescription Details
+                    </div>
+                    <Button variant="outline" size="sm" onClick={download} disabled={isDownloading}>
+                        {isDownloading ? <Loader className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Download PDF
+                    </Button>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+                {(prescription as any).medications.map((med: any, i: number) => (
+                    <div key={i} className="p-2 border-b last:border-b-0">
+                        <p className="font-bold">{med.name}</p>
+                        <p className="text-muted-foreground">{med.dosage} - {med.frequency}</p>
+                        <p className="text-xs text-muted-foreground/80 mt-1">Reason: {med.reason}</p>
+                    </div>
+                ))}
+                <div>
+                    <h4 className="font-semibold mt-2">Notes from your Doctor</h4>
+                    <p className="text-muted-foreground">{(prescription as any).notes}</p>
+                </div>
             </CardContent>
         </Card>
     )

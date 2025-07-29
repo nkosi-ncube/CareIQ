@@ -469,7 +469,10 @@ export async function getPatientPrescriptions() {
       .sort({ createdAt: -1 })
       .lean();
   
-      const prescriptions = consultations.map(c => c.aiPrescription);
+      const prescriptions = consultations.map(c => ({
+        consultationId: c._id.toString(),
+        aiPrescription: c.aiPrescription,
+      }));
   
       return { success: true, data: prescriptions };
     } catch (error) {
