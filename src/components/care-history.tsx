@@ -1,26 +1,52 @@
 'use client';
 
-import { useState, useTransition } from "react";
-import { mockConsultations } from "@/lib/mock-data";
+import { useState, useTransition, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { getAISummary } from "@/lib/actions";
-import { Calendar, Sparkles, Stethoscope, User } from "lucide-react";
+import { getAISummary, getPatientConsultationHistory } from "@/lib/actions";
+import { Calendar, Sparkles, Stethoscope, User, AlertTriangle } from "lucide-react";
 import type { SummarizeConsultationHistoryOutput } from "@/ai/flows/summarize-consultation";
 import { Skeleton } from "./ui/skeleton";
+import type { IConsultation } from "@/models/Consultation";
 
 export default function CareHistory() {
-  const [isPending, startTransition] = useTransition();
+  const [isSummaryPending, startSummaryTransition] = useTransition();
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [summary, setSummary] = useState<SummarizeConsultationHistoryOutput | null>(null);
+  const [history, setHistory] = useState<IConsultation[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+        setIsHistoryLoading(true);
+        setError(null);
+        const response = await getPatientConsultationHistory();
+        if (response.success && response.data) {
+            setHistory(response.data as IConsultation[]);
+        } else {
+            setError(response.error ?? "Failed to load consultation history.");
+        }
+        setIsHistoryLoading(false);
+    }
+    fetchHistory();
+  }, []);
+
   const handleGenerateSummary = async () => {
-    startTransition(async () => {
+    if (history.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Generate Summary',
+        description: 'You have no consultation history to summarize.',
+      });
+      return;
+    }
+    startSummaryTransition(async () => {
       setSummary(null);
-      const response = await getAISummary(mockConsultations);
+      const response = await getAISummary(history);
       if (response.success && response.data) {
         setSummary(response.data);
       } else {
@@ -43,20 +69,20 @@ export default function CareHistory() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!summary && !isPending && (
+          {!summary && !isSummaryPending && (
             <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border bg-background p-8 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                     <Sparkles className="h-8 w-8 text-primary"/>
                 </div>
                 <h3 className="font-headline text-xl font-semibold">Ready for your health overview?</h3>
                 <p className="text-muted-foreground">Click the button to generate a personalized summary of your care history.</p>
-                <Button onClick={handleGenerateSummary} disabled={isPending}>
-                    {isPending ? 'Generating...' : 'Generate AI Summary'}
-                    {!isPending && <Sparkles className="ml-2 h-4 w-4" />}
+                <Button onClick={handleGenerateSummary} disabled={isSummaryPending || isHistoryLoading || history.length === 0}>
+                    {isSummaryPending ? 'Generating...' : 'Generate AI Summary'}
+                    {!isSummaryPending && <Sparkles className="ml-2 h-4 w-4" />}
                 </Button>
             </div>
           )}
-          {isPending && (
+          {isSummaryPending && (
              <div className="space-y-4 rounded-lg border border-border bg-background p-4">
                 <Skeleton className="h-5 w-1/3 rounded-md"/>
                 <div className="space-y-2">
@@ -80,34 +106,57 @@ export default function CareHistory() {
 
       <div className="space-y-4">
         <h2 className="font-headline text-2xl font-semibold">Past Consultations</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-            {mockConsultations.map((consultation) => (
-                <Card key={consultation.id} className="flex flex-col shadow-md">
-                    <CardHeader>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <CardTitle className="font-headline text-xl">{consultation.specialty}</CardTitle>
-                                <CardDescription className="flex items-center gap-2 pt-1">
-                                    <Calendar className="h-4 w-4" />
-                                    {new Date(consultation.date).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' })}
-                                </CardDescription>
+        {isHistoryLoading && (
+            <div className="grid gap-4 md:grid-cols-2">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-64 w-full"/>)}
+            </div>
+        )}
+        {!isHistoryLoading && error && (
+            <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error Loading History</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        )}
+        {!isHistoryLoading && !error && history.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border bg-background p-8 text-center min-h-[200px]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Calendar className="h-8 w-8 text-primary"/>
+                </div>
+                <h3 className="font-headline text-xl font-semibold">No Past Consultations</h3>
+                <p className="text-muted-foreground">Your completed consultations will appear here.</p>
+            </div>
+        )}
+        {!isHistoryLoading && !error && history.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+                {history.map((consultation) => (
+                    <Card key={consultation._id} className="flex flex-col shadow-md">
+                        <CardHeader>
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <CardTitle className="font-headline text-xl">{(consultation.hcp as any).specialty}</CardTitle>
+                                    <CardDescription className="flex items-center gap-2 pt-1">
+                                        <Calendar className="h-4 w-4" />
+                                        {new Date(consultation.createdAt).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </CardDescription>
+                                </div>
+                                <Badge variant="outline">{(consultation.hcp as any).name}</Badge>
                             </div>
-                            <Badge variant="outline">{consultation.doctor}</Badge>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex-grow space-y-4">
-                        <div>
-                            <h4 className="font-semibold text-sm mb-1 flex items-center gap-2"><User className="h-4 w-4 text-primary"/>Symptoms Reported</h4>
-                            <p className="text-muted-foreground text-sm">{consultation.symptoms}</p>
-                        </div>
-                        <div>
-                             <h4 className="font-semibold text-sm mb-1 flex items-center gap-2"><Stethoscope className="h-4 w-4 text-primary"/>Diagnosis & Plan</h4>
-                            <p className="text-muted-foreground text-sm">{consultation.diagnosis}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
+                        </CardHeader>
+                        <CardContent className="flex-grow space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-sm mb-1 flex items-center gap-2"><User className="h-4 w-4 text-primary"/>Symptoms Reported</h4>
+                                <p className="text-muted-foreground text-sm">{consultation.symptomsSummary}</p>
+                            </div>
+                            <div>
+                                <h4 className="font-semibold text-sm mb-1 flex items-center gap-2"><Stethoscope className="h-4 w-4 text-primary"/>Diagnosis & Plan</h4>
+                                <p className="text-muted-foreground text-sm">{consultation.postConsultationSummary || "No summary provided."}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        )}
       </div>
     </div>
   );

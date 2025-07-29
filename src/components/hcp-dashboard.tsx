@@ -3,19 +3,20 @@ import { CareIqLogo } from "@/components/icons";
 import AuthButton from "@/components/auth-button";
 import type { UserSession, WaitingPatient } from "@/lib/types";
 import { Input } from "./ui/input";
-import { Search, User, Clock, Stethoscope, Video, Loader } from "lucide-react";
+import { Search, User, Clock, Stethoscope, Video, Loader, Calendar, FileText, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import Link from "next/link";
-import { getHcpDashboardData, updateConsultationStatus } from "@/lib/actions";
+import { getHcpDashboardData, updateConsultationStatus, getHcpConsultationHistory } from "@/lib/actions";
 import { useEffect, useState, useTransition } from "react";
 import { Skeleton } from "./ui/skeleton";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
+import type { IConsultation } from "@/models/Consultation";
 
 
 function ProfileTab({ user }: { user: UserSession | null }) {
@@ -42,6 +43,87 @@ function ProfileTab({ user }: { user: UserSession | null }) {
                     <Badge variant="outline">{user.role}</Badge>
                 </div>
                  {/* In a real app, we'd fetch the full HCP user object to get specialty, etc. */}
+            </CardContent>
+        </Card>
+    );
+}
+
+function HistoryTab() {
+    const [history, setHistory] = useState<IConsultation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            setIsLoading(true);
+            const result = await getHcpConsultationHistory();
+            if (result.success && result.data) {
+                setHistory(result.data as IConsultation[]);
+            } else {
+                setError(result.error ?? "Failed to load history.");
+            }
+            setIsLoading(false);
+        };
+        fetchHistory();
+    }, []);
+    
+    if (isLoading) {
+        return (
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-7 w-48" />
+                    <Skeleton className="h-4 w-64" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <Skeleton className="h-24 w-full" />
+                     <Skeleton className="h-24 w-full" />
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (error) {
+        return <Alert variant="destructive"><AlertTriangle/><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
+    }
+
+    return (
+        <Card>
+           <CardHeader>
+                <CardTitle>Consultation History</CardTitle>
+                <CardDescription>A list of your past completed consultations.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {history.length === 0 ? (
+                     <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border p-8 text-center min-h-[200px]">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                            <FileText className="h-8 w-8 text-primary"/>
+                        </div>
+                        <h3 className="font-headline text-xl font-semibold">No History Found</h3>
+                        <p className="text-muted-foreground">Your completed consultations will appear here.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {history.map(c => (
+                            <div key={c._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4">
+                                <div className="flex items-center gap-4 mb-4 sm:mb-0">
+                                    <Avatar className="h-12 w-12">
+                                        <AvatarFallback>{(c.patient as any).name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-bold text-lg">{(c.patient as any).name}</p>
+                                        <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                                            <Calendar className="h-4 w-4"/> 
+                                            {new Date(c.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button asChild variant="outline">
+                                    <Link href={`/consultation/${c._id}/summary`}>View Details</Link>
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -187,12 +269,7 @@ export default function HcpDashboard({ user }: { user: UserSession }) {
                     </Card>
                 </TabsContent>
                  <TabsContent value="history">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Coming Soon</CardTitle>
-                            <CardDescription>A list of your past consultations will appear here.</CardDescription>
-                        </CardHeader>
-                     </Card>
+                    <HistoryTab />
                  </TabsContent>
                  <TabsContent value="profile">
                     <ProfileTab user={user} />

@@ -56,14 +56,14 @@ export async function getFollowUpQuestions(symptoms: string) {
     }
 }
 
-export async function getAISummary(consultations: Consultation[]) {
+export async function getAISummary(consultations: any[]) {
   if (!consultations || consultations.length === 0) {
     return { success: false, error: 'No consultation history provided.' };
   }
   try {
     const history = consultations
       .map(
-        (c) => `Date: ${c.date}\nDoctor: ${c.doctor} (${c.specialty})\nSymptoms: ${c.symptoms}\nDiagnosis: ${c.diagnosis}`
+        (c) => `Date: ${new Date(c.createdAt).toLocaleDateString()}\nDoctor: ${c.hcp.name} (${c.hcp.specialty})\nSymptoms: ${c.symptomsSummary}\nDiagnosis: ${c.postConsultationSummary || 'N/A'}`
       )
       .join('\n\n---\n\n');
     
@@ -248,7 +248,7 @@ export async function createConsultation(hcpId: string, symptoms: string, aiResu
       });
   
       await newConsultation.save();
-      revalidatePath('/hcp-dashboard'); // To update the HCP's queue
+      revalidatePath('/'); // To update the HCP's queue
       
       return { success: true, data: { consultationId: newConsultation._id.toString() }};
 
@@ -438,6 +438,7 @@ export async function approvePrescription(consultationId: string, prescription: 
         consultation.aiPrescription = prescription;
         await consultation.save();
         revalidatePath(`/consultation/${consultationId}/live`);
+        revalidatePath(`/`); // For patient prescriptions tab
         return { success: true };
     } catch (error) {
         console.error('Error approving prescription:', error);
@@ -469,3 +470,52 @@ export async function getPatientPrescriptions() {
       return { success: false, error: 'A server error occurred while fetching your prescriptions.' };
     }
   }
+
+
+export async function getPatientConsultationHistory() {
+    const session = await getSession();
+    if (!session || session.role !== 'patient') {
+      return { success: false, error: 'You must be logged in as a patient.' };
+    }
+  
+    try {
+      await dbConnect();
+  
+      const history = await ConsultationModel.find({ 
+        patient: session.id,
+        status: 'completed' 
+      })
+      .populate('hcp', 'name specialty')
+      .sort({ createdAt: -1 })
+      .lean();
+        
+      return { success: true, data: history };
+    } catch (error) {
+      console.error('Error fetching patient consultation history:', error);
+      return { success: false, error: 'A server error occurred while fetching your history.' };
+    }
+}
+
+export async function getHcpConsultationHistory() {
+    const session = await getSession();
+    if (!session || session.role !== 'hcp') {
+      return { success: false, error: 'You must be logged in as an HCP.' };
+    }
+  
+    try {
+      await dbConnect();
+  
+      const history = await ConsultationModel.find({ 
+        hcp: session.id,
+        status: 'completed' 
+      })
+      .populate('patient', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+  
+      return { success: true, data: history };
+    } catch (error) {
+      console.error('Error fetching HCP consultation history:', error);
+      return { success: false, error: 'A server error occurred while fetching your history.' };
+    }
+}
